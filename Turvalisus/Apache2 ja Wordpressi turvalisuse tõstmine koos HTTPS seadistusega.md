@@ -1,132 +1,155 @@
-Seadistame esmalt lokaalse turvalise keskkonna ise-allkirjastatud sertifikaatidega (mis sobib teie VM-idele) ja anname seejärel teadmise, kuidas Let's Encryptiga avalikus keskkonnas edasi minna.
-
-Siin on teie täielik juhend Apache2 ja WordPressi turvaliseks seadistamiseks kahe Virtual Host'iga, sisaldades mõlemat SSL-meetodit.
+Vabandust segaduse pärast\! Püüan tagada, et seekord oleksid **kõik** selgitavad ja turvalisust põhjendavad kommentaarid iga sammu juurde lisatud. Alustame kohe algusest, et tagada teie turvalise lokaalse testimiskeskkonna seadistamine.
 
 -----
 
-## 1\. Eeltöö: Süsteemi Ettevalmistamine ja Tarkvara Paigaldus 🛠️
+# Täielik Juhend: Turvaline Apache2 ja Kaks WordPressi Virtual Host'i Debianis 🛡️
 
-See osa kordab vajalikku baastarkvara paigaldust ja serveri turvalisuse parandamist.
+See juhend seadistab kahele lokaalsele Virtual Host'ile (minuleht.local ja uusleht.local) **HTTPS-i** (ise-allkirjastatud sertifikaadiga) ning rakendab olulised turvaparameetrid.
 
-### Samm 1.1: Süsteemi Uuendamine ja Baastarkvara Paigaldus
+-----
 
-Paigaldame kõik vajalikud komponendid (Apache2, MariaDB, PHP, OpenSSL).
+## 1\. Eeltöö: Süsteemi Ettevalmistamine ja Vundamendi Rajamine 🛠️
+
+See sektsioon tagab vajaliku tarkvara paigalduse ja seab turvalisuse alused.
+
+### Samm 1.1: Süsteemi Värskendamine ja Komponentide Paigaldus
 
 ```bash
-# Uuendame pakettide loendi
+# Esmalt värskendame kohalikku pakettide registrit. 
+# See on esmane turvameede, et tagada uusimate, turvaparandustega versioonide paigaldus.
 sudo apt update
 
-# Paigaldame Apache2, MariaDB, PHP ja vajalikud laiendused (sh OpenSSL)
+# Paigaldame Apache2, MariaDB (andmebaasiserver), PHP koos laiendustega (wordpressile vajalikud) ja OpenSSL (SSL-sertifikaatide loomiseks).
 sudo apt install apache2 mariadb-server php libapache2-mod-php php-mysql php-cli php-curl php-gd php-mbstring php-xml php-zip unzip wget openssl -y
 
-# Käivitame teenused ja seadistame automaatselt käivituma
+# Käivitame teenused ja seadistame need automaatselt käivituma.
 sudo systemctl start apache2 mariadb
 sudo systemctl enable apache2 mariadb
 ```
 
-  * **Kommentaar:** **OpenSSL** on vajalik ise-allkirjastatud (Self-Signed) HTTPS sertifikaatide loomiseks, mida kasutame lokaalseks testimiseks.
+  * **Kommentaar (Tarkvara Roll):** **`libapache2-mod-php`** integreerib PHP otse Apache'iga (nn. LAMP-seadistus). **`php-mysql`** on vältimatu, et WordPress saaks andmebaasiga suhelda. **`openssl`** on kriitiline tööriist ise-allkirjastatud sertifikaadi loomiseks, mida teie VM-keskkond vajab.
 
-### Samm 1.2: Apache'i Turvaseadete Tugevdamine (Üldkonfiguratsioon)
+### Samm 1.2: Apache'i Üldise Turvalisuse Tugevdamine (Security Headers)
 
-Avame Apache'i **`security.conf`** faili, et keelata ebavajalikud andmed ja lisada turvapäised.
+Lisame HTTP vastustele turvapäiseid, mis kaitsevad **brauseripõhiste rünnakute** eest.
 
 ```bash
+# Avame Apache'i üldise turvakonfiguratsiooni faili
 sudo nano /etc/apache2/conf-available/security.conf
 ```
 
-Lisa faili lõppu (või muuda olemasolevaid väärtusi) järgmised read:
+Lisa/muuda failis järgmisi sätteid:
 
 ```apache
-# Keela serveri täisversiooni kuvamine veateadetes (Server Masking)
+# Keelab Apache'i täpse versiooninumbri ja OS info kuvamise veateadetes.
+# Ründajal on nii vähem infot spetsiifiliste haavatavuste ärakasutamiseks.
 ServerTokens Prod
 ServerSignature Off
 
-# HTTP Strict Transport Security (HSTS) - sunnib brauserit kasutama AINULT HTTPS-i
+# Lubame "headers" mooduli, mis on vajalik alltoodud turvapäiste jaoks
 <IfModule mod_headers.c>
-    # See päis sunnib brausereid kasutama HTTPS-i isegi HTTP päringu korral
+    # HTTP Strict Transport Security (HSTS): Sunnib brauserit antud domeeni külastama AINULT HTTPS-i kaudu.
     Header always set Strict-Transport-Security "max-age=15768000; includeSubDomains"
     
-    # Clickjacking vastane kaitse
+    # X-Frame-Options SAMEORIGIN: Kaitseb Clickjacking rünnakute eest.
+    # See keelab lehe laadimise iframe'ides teistel domeenidel.
     Header always append X-Frame-Options SAMEORIGIN
     
-    # MIME-tüübi sniffing'u vastane kaitse (XSS)
+    # X-Content-Type-Options nosniff: Takistab brauserit oletamast failitüüpi.
+    # Kaitse MIME-tüübi sniffing'u (XSS) eest.
     Header always set X-Content-Type-Options nosniff
     
-    # Content Security Policy (Põhiline - lubab laadida faile ainult samast domeenist)
-    Header always set Content-Security-Policy "default-src 'self' http: https: data: 'unsafe-inline' 'unsafe-eval'"
+    # Content-Security-Policy (CSP): Piirab, kust brauser tohib laadida skripte, stiile jne.
+    # See on eluline kaitse Cross-Site Scripting (XSS) rünnakute vastu.
+    Header always set Content-Security-Policy "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'"
     
-    # Määrab, millist teavet saata teistele saitidele liikudes
+    # Referrer-Policy: Määrab, millist infot saata teistele saitidele liikudes.
     Header always set Referrer-Policy "no-referrer-when-downgrade"
 </IfModule>
 ```
 
-  * **Kommentaar:** **`ServerTokens Prod`** piirab teavet, mida Apache veateadetes ründajale avaldab. Turvapäised nagu **HSTS** ja **X-Frame-Options** kaitsevad brauseripõhiste rünnakute, näiteks *Clickjacking'u* eest.
+Salvesta ja sulge.
 
 -----
 
-## 2\. Apache2 ja Virtual Host'ide Seadistamine (HTTP ja HTTPS)
+## 2\. MariaDB Andmebaaside Loomine ja Turvaline Eraldamine 🗃️
 
-Seadistame mõlemad saidid koheselt **HTTPS-i** jaoks, kasutades lokaalset ise-allkirjastatud sertifikaati.
+See osa rakendab **väikseima vajaliku privileegi printsiipi** andmebaasi tasandil.
 
-### Samm 2.1: Veebikataloogide ja Test-HTML-i Loomine
-
-Loome kataloogid ja testfailid:
+### Samm 2.1: Loo Eraldatud Andmebaasid ja Kasutajad
 
 ```bash
+sudo mysql
+```
+
+**MariaDB käsureal sisesta järgmised käsud:**
+
+```sql
+-- 1. minuleht.local andmebaas ja kasutaja
+CREATE DATABASE `minuleht.local` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- Kasutaja 'minuadmin'@'localhost' saab ühenduda AINULT serverist endast.
+CREATE USER 'minuadmin'@'localhost' IDENTIFIED BY 'tugevparool123_1';
+-- GRANT ALL PRIVILEGES ON `minuleht.local`.* - Anname õigused AINULT sellele andmebaasile. 
+-- See on turvaline viis, sest kui üks sait kompromiteeritakse (nt SQL Injection rünnaku kaudu), 
+-- ei saa ründaja automaatselt ligi teise saidi (uusleht.local) andmetele.
+GRANT ALL PRIVILEGES ON `minuleht.local`.* TO 'minuadmin'@'localhost';
+
+-- 2. uusleht.local andmebaas ja kasutaja
+CREATE DATABASE `uusleht.local` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'uusadmin'@'localhost' IDENTIFIED BY 'tugevparool123_2';
+GRANT ALL PRIVILEGES ON `uusleht.local`.* TO 'uusadmin'@'localhost';
+
+FLUSH PRIVILEGES; # Rakendab muudatused koheselt
+EXIT;
+```
+
+-----
+
+## 3\. Apache2 Virtual Host'ide ja HTTPS-i Seadistus 🌐
+
+Seadistame virtual host'id ja loome ise-allkirjastatud sertifikaadi, mis sobib teie lokaalsete VM-ide jaoks.
+
+### Samm 3.1: Veebikataloogide Loomine ja Sertifikaadi Genereerimine
+
+```bash
+# Loome juurkataloogid
 sudo mkdir -p /var/www/minuleht.local/html
 sudo mkdir -p /var/www/uusleht.local/html
 
-sudo sh -c 'echo "<html><body><h1>minuleht.local - Test OK</h1></body></html>" > /var/www/minuleht.local/html/index.html'
-sudo sh -c 'echo "<html><body><h1>uusleht.local - Test OK</h1></body></html>" > /var/www/uusleht.local/html/index.html'
-```
-
-### Samm 2.2: Ise-allkirjastatud Sertifikaadi Loomine (Lokaalne SSL)
-
-Loome ühe sertifikaadi, mis kehtib nii `minuleht.local` kui ka `uusleht.local` jaoks, kasutades **Subject Alternative Name (SAN)** laiendit. See on vajalik kaasaegsete brauserite puhul.
-
-```bash
-# Loo privaatvõti ja sertifikaat (kehtib 365 päeva)
+# Loo ise-allkirjastatud sertifikaat, mis kehtib mitmele domeenile (Subject Alternative Name - SAN)
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout /etc/ssl/private/local_dev.key \
     -out /etc/ssl/certs/local_dev.crt \
-    -subj "/C=EE/ST=Harjumaa/L=Tallinn/O=Local Development/CN=minuleht.local" \
+    -subj "/C=EE/ST=Harjumaa/L=Tallinn/O=Local Dev/CN=minuleht.local" \
     -addext "subjectAltName = DNS:minuleht.local, DNS:uusleht.local"
 ```
 
-  * **Kommentaar:** Sertifikaadi loomine OpenSSL-i abil tekitab kaks faili: **`.key`** (privaatvõti, mida hoiad saladuses) ja **`.crt`** (avalik sertifikaat). **`subjectAltName`** lubab ühel sertifikaadil kaitsta mitut domeeni.
+  * **Kommentaar:** Lokaalses keskkonnas on **ise-allkirjastatud sertifikaat** ainus viis HTTPS-i saamiseks, kuna Let's Encrypt ei saa valideerida domeene, millel puudub avalik IP. **SAN laiend** on vajalik, et brauserid aktsepteeriksid ühte sertifikaati mõlema domeeni jaoks.
 
-### Samm 2.3: Virtual Host'ide Seadistamine HTTP-HTTPS Ümbersuunamisega
+### Samm 3.2: Virtual Host'ide Konfiguratsioon (HTTPS Sunnitud)
 
-Me lubame Apache'i SSL-mooduli ja loome konfiguratsioonid pordile 80 (HTTP) ja 443 (HTTPS).
+Loome failid `/etc/apache2/sites-available/minuleht.local.conf` ja `uusleht.local.conf`.
+
+**Näide `minuleht.local.conf` sisu:**
 
 ```bash
-# Lubame SSL-mooduli
-sudo a2enmod ssl
-
-# Lubame headers mooduli (vajalik turvapäiste jaoks)
-sudo a2enmod headers
+sudo nano /etc/apache2/sites-available/minuleht.local.conf
 ```
-
-#### minuleht.local konfiguratsioon (nano kasutades)
-
-Loome faili **`/etc/apache2/sites-available/minuleht.local.conf`**:
 
 ```apache
 # ----------------------------------------------------
-# 1. HTTP PORDIL 80 (Suunab koheselt ümber HTTPS-ile)
+# 1. HTTP PORDIL 80: Ainult ÜMBERSUUNAMINE
 # ----------------------------------------------------
 <VirtualHost *:80>
     ServerName minuleht.local
     DocumentRoot /var/www/minuleht.local/html
-
-    # Sunni HTTPS
+    # RewriteEngine ja RewriteRule sunnivad brauserit kasutama HTTPS-i (püsiv ümbersuunamine)
     RewriteEngine On
     RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,R=permanent]
 </VirtualHost>
 
-
 # ----------------------------------------------------
-# 2. HTTPS PORDIL 443 (Tegelik lehe sisu)
+# 2. HTTPS PORDIL 443: Tegelik Sisu Serveerimine
 # ----------------------------------------------------
 <VirtualHost *:443>
     ServerName minuleht.local
@@ -134,6 +157,7 @@ Loome faili **`/etc/apache2/sites-available/minuleht.local.conf`**:
 
     <Directory /var/www/minuleht.local/html>
         Options Indexes FollowSymLinks
+        # AllowOverride All on VÄLTIMATU WordPressi .htaccess faili (püsiviidete) töötlemiseks
         AllowOverride All  
         Require all granted
     </Directory>
@@ -141,144 +165,81 @@ Loome faili **`/etc/apache2/sites-available/minuleht.local.conf`**:
     ErrorLog ${APACHE_LOG_DIR}/minuleht.local_error.log
     CustomLog ${APACHE_LOG_DIR}/minuleht.local_access.log combined
 
-    # SSL/TLS SEADISTUSED
+    # Ise-allkirjastatud SSL/TLS SEADISTUSED
     SSLEngine on
     SSLCertificateFile    /etc/ssl/certs/local_dev.crt
     SSLCertificateKeyFile /etc/ssl/private/local_dev.key
 </VirtualHost>
 ```
 
-#### uusleht.local konfiguratsioon (nano kasutades)
+**(Korda sama `uusleht.local.conf` jaoks.)**
 
-Loome faili **`/etc/apache2/sites-available/uusleht.local.conf`** (muuda ainult `ServerName` ja logifaili nimed).
-
-```apache
-# OLEMASOLEV PLOKK PORDIL 80 (Suunab koheselt ümber HTTPS-ile)
-<VirtualHost *:80>
-    ServerName uusleht.local
-    DocumentRoot /var/www/uusleht.local/html
-    RewriteEngine On
-    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,R=permanent]
-</VirtualHost>
-
-# UUS PLOKK PORDIL 443 (Tegelik lehe sisu)
-<VirtualHost *:443>
-    ServerName uusleht.local
-    DocumentRoot /var/www/uusleht.local/html
-
-    <Directory /var/www/uusleht.local/html>
-        Options Indexes FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-
-    ErrorLog ${APACHE_LOG_DIR}/uusleht.local_error.log
-    CustomLog ${APACHE_LOG_DIR}/uusleht.local_access.log combined
-
-    # SSL/TLS SEADISTUSED
-    SSLEngine on
-    SSLCertificateFile    /etc/ssl/certs/local_dev.crt
-    SSLCertificateKeyFile /etc/ssl/private/local_dev.key
-</VirtualHost>
-```
-
-### Samm 2.4: Virtual Host'ide Lubamine ja Testimine
+### Samm 3.3: Konfiguratsiooni Rakendamine
 
 ```bash
-# Lubame rewrite mooduli (vajalik HTTPS ümbersuunamiseks)
+# Lubame rewrite mooduli (vajalik ümbersuunamiseks)
 sudo a2enmod rewrite
 
-# Keelame vaikimisi saidi
+# Keelame vaikimisi saidi ja lubame uued
 sudo a2dissite 000-default.conf
-
-# Lubame uued saidid
 sudo a2ensite minuleht.local.conf
 sudo a2ensite uusleht.local.conf
 
-# Kontrollime Apache'i süntaksi
+# Kontrollime süntaksi ja taaskäivitame Apache'i
 sudo apache2ctl configtest
-
-# Kui "Syntax OK", taaskäivitame
 sudo systemctl restart apache2
 ```
 
-  * **Kommentaar:** Mõlemal Virtual Host'il on nüüd kaks plokki: pordi 80 plokk tegeleb ainult **HTTP -\> HTTPS** suunamisega, ja pordi 443 plokk tegeleb tegeliku sisu serveerimise ja krüpteerimisega.
-
 -----
 
-## 3\. MariaDB, PHP ja WordPressi Paigaldus 🚀
+## 4\. WordPressi Turvaline Paigaldus ja Tugevdamine 🚀
 
-See osa tegeleb andmebaaside loomise ja WordPressi failide konfigureerimisega.
-
-### Samm 3.1: Andmebaaside Loomine
+### Samm 4.1: WordPressi Failide Paigaldus
 
 ```bash
-sudo mysql
-
-# MariaDB käsureal sisesta järgmised käsud:
-CREATE DATABASE `minuleht.local` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'minuadmin'@'localhost' IDENTIFIED BY 'tugevparool123_1';
-GRANT ALL PRIVILEGES ON `minuleht.local`.* TO 'minuadmin'@'localhost';
-
-CREATE DATABASE `uusleht.local` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'uusadmin'@'localhost' IDENTIFIED BY 'tugevparool123_2';
-GRANT ALL PRIVILEGES ON `uusleht.local`.* TO 'uusadmin'@'localhost';
-
-FLUSH PRIVILEGES;
-EXIT;
-```
-
-### Samm 3.2: WordPressi Allalaadimine ja Failliikumine
-
-```bash
-# Kustutame eelnevalt loodud index.html failid
-sudo rm /var/www/minuleht.local/html/index.html
-sudo rm /var/www/uusleht.local/html/index.html
-
-# Laadime alla ja pakime lahti WordPressi
+# Kopeerime failid juurkataloogidesse
 cd /tmp
 wget https://wordpress.org/latest.tar.gz
 tar -xzvf latest.tar.gz
 
-# Kopeerime failid
 sudo cp -R wordpress/* /var/www/minuleht.local/html/
 sudo cp -R wordpress/* /var/www/uusleht.local/html/
 ```
 
-### Samm 3.3: wp-config.php loomine ja Turvalisem Seadistamine
+### Samm 4.2: wp-config.php Seadistamine ja Turvaparameetrid
 
-Loome ja seadistame **`wp-config.php`** faili andmebaasi ühenduse ja täiendavate turvaseadetega.
+Loome **`wp-config.php`** faili ja lisame turvaseaded, mis kaitsevad koodi süstimise ja teema muutmise eest.
 
-#### 3.3.1: minuleht.local konfiguratsioon (nano kasutades)
+#### minuleht.local konfiguratsioon (nano kasutades)
 
 ```bash
 sudo cp /var/www/minuleht.local/html/wp-config-sample.php /var/www/minuleht.local/html/wp-config.php
 sudo nano /var/www/minuleht.local/html/wp-config.php
 ```
 
-Asenda DB detailid ja lisa turvaseaded (enne rida `/* That's all, stop editing! Happy publishing. */`):
+Asenda DB detailid ja **lisa järgmised turvaseaded** enne rida `/* That's all, stop editing! Happy publishing. */`:
 
 ```php
-// DB ÜHENDUS
+// ... DB ÜHENDUSE DETAILID ...
 define( 'DB_NAME', 'minuleht.local' );
 define( 'DB_USER', 'minuadmin' );
-define( 'DB_PASSWORD', 'tugevparool123_1' ); // ASENDA OMA PAROOLIGA
+define( 'DB_PASSWORD', 'tugevparool123_1' ); 
 define( 'DB_HOST', 'localhost' );
 
 // TURVASEADED
-// Muuda tabelite eesliidet (vähendab standardsete SQL Injection rünnakute riski)
+// Muudab tabeli eesliidet standardse wp_ asemel juhuslikuks (nt wp_84321_).
+// See raskendab SQL Injection rünnakuid, mis eeldavad standardset tabelinime struktuuri.
 $table_prefix = 'wp_'.rand(10000, 99999).'_'; 
-// Keela failide redigeerimine administraatori paneelis
+
+// DISALLOW_FILE_EDIT: VÄGA TÄHTIS TURVAMEEDE. Keelab administraatori paneelist teema/plugina koodi muutmise.
+// Kui ründaja peaks saama administraatorina sisse, ei saa ta otse pahavara süstida.
 define( 'DISALLOW_FILE_EDIT', true );
-// Sunni sisselogimine ja admin-paneel kasutama SSL/HTTPS-i
+
+// FORCE_SSL_ADMIN: Sunnib sisselogimise ja admin-paneeli kasutama HTTPS-i.
 define( 'FORCE_SSL_ADMIN', true );
 ```
 
-#### 3.3.2: uusleht.local konfiguratsioon (korda samme 3.3.1)
-
-Korda sama protsess saidi `uusleht.local` jaoks, kasutades teise saidi DB andmeid ja parooli.
-
-### Samm 3.4: Failiõiguste Seadistamine ja XML-RPC Keelamine
+### Samm 4.3: Failiõiguste Seadistamine ja XML-RPC Keelamine
 
 ```bash
 # Määrame omanikuks veebiserveri kasutaja (www-data)
@@ -288,11 +249,8 @@ sudo chown -R www-data:www-data /var/www/uusleht.local/
 # Seadistame turvalised õigused (kaustad 755, failid 644)
 sudo find /var/www/minuleht.local/html -type d -exec chmod 755 {} \;
 sudo find /var/www/minuleht.local/html -type f -exec chmod 644 {} \;
-sudo find /var/www/uusleht.local/html -type d -exec chmod 755 {} \;
-sudo find /var/www/uusleht.local/html -type f -exec chmod 644 {} \;
 
-# XML-RPC keelamine .htaccess faili abil (vähendab rünnakupinda)
-# Lisa see ka mõlema saidi .htaccess faili
+# XML-RPC keelamine .htaccess faili abil.
 echo '
 # BLOCK XML-RPC ATTACKS
 <Files xmlrpc.php>
@@ -301,49 +259,29 @@ Deny from all
 </Files>' | sudo tee -a /var/www/minuleht.local/html/.htaccess
 ```
 
-  * **Kommentaar:** **`DISALLOW_FILE_EDIT`** takistab administraatori paneelist koodi muutmise. **XML-RPC** on sageli rünnakute sihtmärk, seega on selle blokeerimine (kui seda ei kasutata) hea turvameede.
+  * **Kommentaar:** **`www-data`** peab olema omanik, et WordPress saaks faile kirjutada (uuendused, piltide üleslaadimine). **XML-RPC** on vana API, mida ründajad kasutavad **paroolide jõurünnakuteks** (Brute Force), saates ühes päringus palju sisselogimiskatseid. Selle keelamine vähendab ründepinda.
 
-### Samm 3.5: Lõplik Paigaldus
+### Samm 4.4: Lõplik Paigaldus
 
-Ava brauseris `https://minuleht.local` ja `https://uusleht.local`. Sinu brauser annab hoiatusi ise-allkirjastatud sertifikaadi tõttu, kuid saad ühenduse kinnitada. WordPress suunab sind administraatori konto loomise lehele.
+Ava brauseris `https://minuleht.local` ja `https://uusleht.local`. Nüüd saad luua administraatori konto (kasuta **unikaalset kasutajanime** ja **tugevat parooli**, vältides "admin").
 
 -----
 
-## 4\. B-OSA: Avaliku HTTPS-i Seadistamine (Let's Encryptiga)
+## 5\. B-OSA: Avaliku HTTPS-i Seadistamine Let's Encryptiga (Tootmises) 🌎
 
-Kui teie VM-id saavad avaliku IP-aadressi ja te kasutate **avalikult registreeritud domeene** (mitte `.local`), peaksite minema üle Let's Encryptile.
+Kui liikute avalikku keskkonda, kus teil on avalik IP ja registreeritud domeenid, peate kasutama Let's Encrypti, kuna see on avalikult usaldusväärne.
 
-### Eeldused:
-
-1.  Serveril on avalik IP.
-2.  Domeeninimi on avalikult registreeritud ja suunatud sellele IP-le (A-kirje).
-3.  Oled eelnevalt eemaldanud **ise-allkirjastatud SSL seaded** Virtual Host'idest.
-
-### Samm 4.1: Certboti Paigaldamine
+### Samm 5.1: Certboti Paigaldamine
 
 ```bash
-# Uuendame pakettide loendi ja paigaldame Certboti
-sudo apt update
+# Eemalda eelnevalt loodud ise-allkirjastatud SSL seaded Virtual Host'ist!
 sudo apt install certbot python3-certbot-apache -y
 ```
 
-### Samm 4.2: Sertifikaatide Hankimine
-
-Certbot tunneb automaatselt ära teie Apache Virtual Host'id ja küsib, milliseid domeene valideerida:
+### Samm 5.2: Sertifikaatide Hankimine
 
 ```bash
 sudo certbot --apache
 ```
 
-  * **Kommentaar:** Valige interaktiivses viisardis mõlemad domeenid ja **valige "2: Redirect"** HTTP-liikluse automaatseks suunamiseks HTTPS-ile. Certbot muudab automaatselt teie Virtual Host'i faile (lisab SSL-seaded ja eemaldab isetehtud sertifikaatide read).
-
-### Samm 4.3: Automaatse Uuendamise Kontroll
-
-Let's Encrypti sertifikaadid kehtivad 90 päeva, kuid Certbot paigaldab automaatselt taustaprotsessi, mis neid uuendab.
-
-```bash
-# Testime uuendusprotsessi (dry-run)
-sudo certbot renew --dry-run
-```
-
-Kui test on edukas, hoolitseb süsteem sertifikaatide uuendamise eest automaatselt.
+  * **Kommentaar:** **Certbot** kontrollib teie domeeni üle avaliku interneti (Domain Validation). Valige interaktiivses viisardis mõlemad domeenid ja **valige "2: Redirect"** HTTP-liikluse automaatseks suunamiseks HTTPS-ile. Certbot muudab automaatselt teie `.conf` faile, lisades sinna usaldusväärse SSL-i ja seadistades automaatse uuenduse.
