@@ -1,8 +1,5 @@
-Vabandust segaduse pärast\! Püüan tagada, et seekord oleksid **kõik** selgitavad ja turvalisust põhjendavad kommentaarid iga sammu juurde lisatud. Alustame kohe algusest, et tagada teie turvalise lokaalse testimiskeskkonna seadistamine.
-
------
-
-# Täielik Juhend: Turvaline Apache2 ja Kaks WordPressi Virtual Host'i Debianis 🛡️
+---
+# Juhend: Turvaline Apache2 ja Kaks WordPressi Virtual Host'i Debianis 🛡️
 
 See juhend seadistab kahele lokaalsele Virtual Host'ile (minuleht.local ja uusleht.local) **HTTPS-i** (ise-allkirjastatud sertifikaadiga) ning rakendab olulised turvaparameetrid.
 
