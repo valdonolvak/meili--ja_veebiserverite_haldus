@@ -76,7 +76,7 @@ cd /var/www/kolmasdomeen.local
 Laadi WordPress:
 
 ```bash
-curl -O https://wordpress.org/latest.zip
+wget https://wordpress.org/latest.zip
 unzip latest.zip
 mv wordpress/* .
 rm -r wordpress latest.zip
