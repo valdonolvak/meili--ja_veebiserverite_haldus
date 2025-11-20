@@ -37,7 +37,7 @@ options {
     };
 
     auth-nxdomain no;    # Valikuline, et BIND käituks nii nagu peaks (RFC1035)
-    listen-on-v6 { any; };
+    listen-on { any; };
 };
 // ...
 ```
