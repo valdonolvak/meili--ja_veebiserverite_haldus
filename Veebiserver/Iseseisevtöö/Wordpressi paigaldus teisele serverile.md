@@ -116,6 +116,59 @@ Lisa rida:
 sudo apt update
 sudo apt install mariadb-server
 ```
+Selleks, et see server aktsepteeriks ka MySQL päringuid teistest serveritest, tuleb alljärgnevad seadistused
+
+### ✅ **1. Muuda MariaDB konfiguratsiooni (bind-address)**
+
+Ava MariaDB serveri seadete fail:
+
+```bash
+sudo nano /etc/mysql/mariadb.conf.d/50-server.cnf
+```
+
+Otsi rida:
+
+```
+bind-address            = 127.0.0.1
+```
+
+Muuda see:
+
+#### Lubada kõik IP-d:
+
+```
+bind-address            = 0.0.0.0
+```
+
+**Või** lubada ainult oma serveri IP:
+
+```
+bind-address            = 10.0.10.5
+```
+
+Salvesta fail (CTRL+O, ENTER) ja sulge (CTRL+X).
+
+---
+
+#### ✅ **2. Taaskäivita MariaDB**
+
+```bash
+sudo systemctl restart mariadb
+```
+
+Kontrolli, et MariaDB kuulab väliseid ühendusi:
+
+```bash
+sudo ss -tulnp | grep 3306
+```
+
+Näha peab näiteks:
+
+```
+LISTEN 0 151 0.0.0.0:3306
+```
+
+---
 
 Käivita turvaskript:
 
