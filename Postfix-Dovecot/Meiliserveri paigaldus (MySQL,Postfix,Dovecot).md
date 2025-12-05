@@ -155,7 +155,7 @@ sudo chown -R www-data:www-data /var/www/postfixadmin
 
 ```bash
 cd postfixadmin/
-cp config.inc.php.sample config.inc.php
+cp config.inc.php.sample config.inc.php-backup
 nano config.inc.php
 ```
 
