@@ -8,7 +8,7 @@ Allpool on **õpilasele sobiv samm-sammuline juhend**.
 
 ---
 
-# 🟦 TÖÖJUHEND — WordPress paigaldamine domeenile `kolmasdomeen.local`
+# 🟦 TÖÖJUHEND — WordPress paigaldamine domeenile `kolmasdomeen.perenimi.local`
 
 ### (Apache2 juba olemas serveris 10.0.x.20, MySQL seadistatakse serveris 10.0.x.25)
 
@@ -18,34 +18,34 @@ Allpool on **õpilasele sobiv samm-sammuline juhend**.
 
 Apache2 on juba olemas, vaja teha:
 
-1. **VirtualHost domeenile kolmasdomeen.local**
+1. **VirtualHost domeenile kolmasdomeen.perenimi.local**
 2. **WordPressi failid ja konfiguratsioon**
 
 ---
 
-### 1. Loo VirtualHost `kolmasdomeen.local`
+### 1. Loo VirtualHost `kolmasdomeen.perenimi.local`
 
 #### 1.1. Loo kataloog WordPressi jaoks:
 
 ```bash
-sudo mkdir -p /var/www/kolmasdomeen.local
-sudo chown -R $USER:$USER /var/www/kolmasdomeen.local
+sudo mkdir -p /var/www/kolmasdomeen.perenimi.local
+sudo chown -R $USER:$USER /var/www/kolmasdomeen.perenimi.local
 ```
 
 #### 1.2. Loo VirtualHost konfiguratsioon:
 
 ```bash
-sudo nano /etc/apache2/sites-available/kolmasdomeen.local.conf
+sudo nano /etc/apache2/sites-available/kolmasdomeen.perenimi.local.conf
 ```
 
 Lisa:
 
 ```apacheconf
 <VirtualHost *:80>
-    ServerName kolmasdomeen.local
-    DocumentRoot /var/www/kolmasdomeen.local
+    ServerName kolmasdomeen.perenimi.local
+    DocumentRoot /var/www/kolmasdomeen.perenimi.local
 
-    <Directory /var/www/kolmasdomeen.local>
+    <Directory /var/www/kolmasdomeen.perenimi.local>
         AllowOverride All
         Require all granted
     </Directory>
@@ -58,7 +58,7 @@ Lisa:
 #### 1.3. Luba sait ja mod_rewrite:
 
 ```bash
-sudo a2ensite kolmasdomeen.local.conf
+sudo a2ensite kolmasdomeen.perenimi.local.conf
 sudo a2enmod rewrite
 sudo systemctl reload apache2
 ```
@@ -70,7 +70,7 @@ sudo systemctl reload apache2
 Mine saidi kausta:
 
 ```bash
-cd /var/www/kolmasdomeen.local
+cd /var/www/kolmasdomeen.perenimi.local
 ```
 
 Laadi WordPress:
@@ -85,8 +85,8 @@ rm -r wordpress latest.zip
 Seadista õigused:
 
 ```bash
-sudo chown -R www-data:www-data /var/www/kolmasdomeen.local
-sudo chmod -R 755 /var/www/kolmasdomeen.local
+sudo chown -R www-data:www-data /var/www/kolmasdomeen.perenimi.local
+sudo chmod -R 755 /var/www/kolmasdomeen.perenimi.local
 ```
 
 ---
@@ -100,10 +100,10 @@ sudo nano /etc/hosts
 Lisa rida:
 
 ```
-10.0.x.20   kolmasdomeen.local
+10.0.x.20   kolmasdomeen.perenimi.local
 ```
 
-> Nüüd peaks brauseri aadressis `http://kolmasdomeen.local` avanema WordPress installeri leht.
+> Nüüd peaks brauseri aadressis `http://kolmasdomeen.perenimi.local` avanema WordPress installeri leht.
 > Aga installimine ei saa jätkuda enne andmebaasi loomist teises serveris.
 
 ---
@@ -218,7 +218,7 @@ EXIT;
 Mine kausta:
 
 ```bash
-cd /var/www/kolmasdomeen.local
+cd /var/www/kolmasdomeen.perenimi.local
 cp wp-config-sample.php wp-config.php
 nano wp-config.php
 ```
@@ -241,7 +241,7 @@ Salvesta fail.
 Ava brauser ja sisesta:
 
 ```
-http://kolmasdomeen.local
+http://kolmasdomeen.perenimi.local
 ```
 
 Peaks avanema WordPress installeri leht.
@@ -253,12 +253,12 @@ Täida saidi nimi, admin kasutaja, parool jne.
 
 Õpilane on seadistanud:
 
-* ✅ VirtualHost domeenile **kolmasdomeen.local**
+* ✅ VirtualHost domeenile **kolmasdomeen.perenimi.local**
 * ✅ WordPressi serveris **10.0.x.20**
 * ✅ MySQL serveri **10.0.x.25**
 * ✅ WordPress ühendub üle võrgu MySQL serveriga
 
-Veebileht kolmasdomeen.local peab avanema ka Windows klient masinas
+Veebileht kolmasdomeen.perenimi.local peab avanema ka Windows klient masinas
 
 ---
 
