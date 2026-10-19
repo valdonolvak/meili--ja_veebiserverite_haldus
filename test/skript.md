@@ -236,3 +236,7 @@ Skripti üleslaadimine töötab ainult siis, kui Flaski rakenduses on `POST /api
 - tagastab eduka salvestamise korral HTTP 200 või 201.
 
 Oluline täpsustus: ülaltoodud skript on ühine näidis, mitte veel sinu ülesande täielik kontrollija. Debian1 näites on WordPressi konfiguratsioonifaili asukoht `/var/www/html/wp-config.php` ning Debian2 näites andmebaasi nimi `kolmasdomeen_db`. Kui sinu labor kasutab teistsugust dokumendijuurt, domeeni või andmebaasi, tuleb kontrollid vastavalt muuta. Samuti tuleb Flaski rakenduse API väljad ja autentimine selle skriptiga täpselt ühildada.
+
+
+sudo grep -nE 'UPLOAD_TOKEN|X-Upload-Token|Authorization|curl' \
+  /usr/local/bin/hkhk-saada-tulemused.sh
