@@ -21,185 +21,262 @@ sudo nano /usr/local/bin/hkhk-saada-tulemused.sh
 Lisa järgmine sisu:
 
 ```
-
-
+```bash
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# HKHK Debian-labori automaatne kontroll ja üleslaadimine
-# Kasutamine:
+# ==========================================================
+# HKHK – Debian labori tulemuste kontroll ja üleslaadimine
+# Käivitamine:
 #   sudo /usr/local/bin/hkhk-saada-tulemused.sh Debian1
 #   sudo /usr/local/bin/hkhk-saada-tulemused.sh Debian2
+# ==========================================================
 
-SERVER_URL="http://192.168.124.64:5050/api/report"
-
-# Sama väärtus peab olema Flaski serveri UPLOAD_TOKEN muutujas.
-UPLOAD_TOKEN="fe67bb5eaa9d9e96d69aa2a0f8982ae7a56138ce1bbeb65291eb763dc8ab8210"
-
+DASHBOARD_URL="http://192.168.124.64:5050"
 REPORT_DIR="/var/tmp/hkhk-report"
 
+# Pane siia sama võti, mis on Ubuntu dashboardi serveri
+# failis /etc/hkhk-dashboard.env.
+# Ära jaga seda võtit teistega.
+UPLOAD_TOKEN="ASENDA_SIIA_SERVERI_SAMA_64_MARGILINE_VOTI"
+
+MACHINE="${1:-}"
+
 if [[ $EUID -ne 0 ]]; then
-    echo "Käivita skript sudo abil."
+    echo "VIGA: käivita skript sudo abil."
     exit 1
 fi
 
-if [[ $# -ne 1 || ( "$1" != "Debian1" && "$1" != "Debian2" ) ]]; then
-    echo "Kasutamine: $0 Debian1|Debian2"
-    exit 1
-fi
-
-MACHINE="$1"
-
-read -r -p "Õpilase ees- ja perekonnanimi: " STUDENT
-STUDENT="${STUDENT#"${STUDENT%%[![:space:]]*}"}"
-STUDENT="${STUDENT%"${STUDENT##*[![:space:]]}"}"
-
-if [[ -z "$STUDENT" ]]; then
-    echo "VIGA: nimi on kohustuslik."
+if [[ "$MACHINE" != "Debian1" && "$MACHINE" != "Debian2" ]]; then
+    echo "Kasutamine:"
+    echo "  sudo $0 Debian1"
+    echo "  sudo $0 Debian2"
     exit 1
 fi
 
 for cmd in python3 curl systemctl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "VIGA: vajalik käsk puudub: $cmd"
+        echo "VIGA: puudub käsk $cmd"
+        echo "Paigalda see enne skripti käivitamist."
         exit 1
     fi
 done
 
-CHECKS='[]'
+if [[ "$UPLOAD_TOKEN" == "ASENDA_SIIA_SERVERI_SAMA_64_MARGILINE_VOTI" ]]; then
+    echo "VIGA: määra skriptis serveriga sama UPLOAD_TOKEN."
+    exit 1
+fi
+
+read -r -p "Õpilase ees- ja perekonnanimi: " STUDENT_NAME
+STUDENT_NAME="$(printf '%s' "$STUDENT_NAME" | xargs)"
+
+if [[ -z "$STUDENT_NAME" ]]; then
+    echo "VIGA: õpilase nimi ei tohi olla tühi."
+    exit 1
+fi
+
+mkdir -p "$REPORT_DIR"
+REPORT_FILE="$REPORT_DIR/${MACHINE}.json"
+TMP_FILE="$(mktemp)"
+trap 'rm -f "$TMP_FILE"' EXIT
+
+CHECKS_FILE="$(mktemp)"
+trap 'rm -f "$TMP_FILE" "$CHECKS_FILE"' EXIT
 
 add_check() {
-    CHECKS="$CHECKS" ID="$1" DESCRIPTION="$2" \
-    EXPECTED="$3" ACTUAL="$4" PASSED="$5" \
-    python3 -c '
-import json, os
-checks = json.loads(os.environ["CHECKS"])
+    local id="$1"
+    local title="$2"
+    local expected="$3"
+    local actual="$4"
+    local status="$5"
+
+    python3 - "$CHECKS_FILE" "$id" "$title" "$expected" "$actual" "$status" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path, check_id, title, expected, actual, status = sys.argv[1:]
+p = Path(path)
+
+checks = []
+if p.exists() and p.stat().st_size:
+    checks = json.loads(p.read_text(encoding="utf-8"))
+
 checks.append({
-    "id": os.environ["ID"],
-    "description": os.environ["DESCRIPTION"],
-    "expected": os.environ["EXPECTED"],
-    "actual": os.environ["ACTUAL"],
-    "passed": os.environ["PASSED"] == "true"
+    "id": check_id,
+    "title": title,
+    "expected": expected,
+    "actual": actual,
+    "status": status
 })
-print(json.dumps(checks, ensure_ascii=False))
-' > /tmp/hkhk-checks.json
-    CHECKS="$(cat /tmp/hkhk-checks.json)"
+
+p.write_text(
+    json.dumps(checks, ensure_ascii=False, indent=2),
+    encoding="utf-8"
+)
+PY
+
+    if [[ "$status" == "OK" ]]; then
+        printf '[OK]  %s — tegelik: %s\n' "$title" "$actual"
+    else
+        printf '[VIGA] %s — oodatud: %s; tegelik: %s\n' \
+            "$title" "$expected" "$actual"
+    fi
 }
 
 check_service() {
     local service="$1"
-    local state="inactive"
+    local title="$2"
+    local actual status
 
-    systemctl is-active --quiet "$service" && state="active" || true
-
-    if [[ "$state" == "active" ]]; then
-        add_check "$service" "$service teenus" "active" "$state" true
+    if systemctl is-active --quiet "$service"; then
+        actual="active"
+        status="OK"
     else
-        add_check "$service" "$service teenus" "active" "$state" false
+        actual="$(systemctl is-active "$service" 2>/dev/null || true)"
+        [[ -n "$actual" ]] || actual="inactive/puudub"
+        status="FAIL"
     fi
+
+    add_check "$service" "$title" "active" "$actual" "$status"
 }
 
-case "$MACHINE" in
-    Debian1)
-        check_service apache2
+# Alusta tühja kontrollide nimekirjaga.
+printf '[]\n' > "$CHECKS_FILE"
 
-        if command -v php >/dev/null 2>&1; then
-            PHP_VERSION="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
-        else
-            PHP_VERSION=""
-        fi
-
-        if [[ -n "$PHP_VERSION" ]]; then
-            add_check php "PHP on paigaldatud" "olemas" "$PHP_VERSION" true
-        else
-            add_check php "PHP on paigaldatud" "olemas" "puudub" false
-        fi
-
-        WP_CONFIG="/var/www/html/wp-config.php"
-        if [[ -f "$WP_CONFIG" ]]; then
-            add_check wp_config "WordPressi konfiguratsioon" \
-                "$WP_CONFIG olemas" "olemas" true
-        else
-            add_check wp_config "WordPressi konfiguratsioon" \
-                "$WP_CONFIG olemas" "puudub" false
-        fi
-        ;;
-    Debian2)
-        check_service mariadb
-        check_service bind9
-
-        if command -v mariadb >/dev/null 2>&1; then
-            DB_RESULT="$(mariadb -N -B -e \
-                "SHOW DATABASES LIKE 'kolmasdomeen_db';" 2>/dev/null || true)"
-        else
-            DB_RESULT=""
-        fi
-
-        if [[ "$DB_RESULT" == "kolmasdomeen_db" ]]; then
-            add_check db "WordPressi andmebaas" \
-                "kolmasdomeen_db" "$DB_RESULT" true
-        else
-            add_check db "WordPressi andmebaas" \
-                "kolmasdomeen_db" "${DB_RESULT:-puudub või ligipääs puudub}" false
-        fi
-
-        if command -v named-checkconf >/dev/null 2>&1 &&
-           named-checkconf >/dev/null 2>&1; then
-            add_check bind_config "BIND9 konfiguratsioon" "korras" "korras" true
-        else
-            add_check bind_config "BIND9 konfiguratsioon" "korras" "viga" false
-        fi
-        ;;
-esac
-
-mkdir -p "$REPORT_DIR"
-chmod 700 "$REPORT_DIR"
-REPORT_FILE="${REPORT_DIR}/${MACHINE}.json"
-
-STUDENT="$STUDENT" MACHINE="$MACHINE" CHECKS="$CHECKS" \
-REPORT_FILE="$REPORT_FILE" python3 - <<'PY'
-import json, os
-from datetime import datetime, timezone
-
-report = {
-    "student": os.environ["STUDENT"],
-    "machine": os.environ["MACHINE"],
-    "timestamp": datetime.now(timezone.utc).isoformat(),
-    "checks": json.loads(os.environ["CHECKS"])
-}
-
-with open(os.environ["REPORT_FILE"], "w", encoding="utf-8") as f:
-    json.dump(report, f, ensure_ascii=False, indent=2)
-
-print(f"Raport koostatud: {os.environ['REPORT_FILE']}")
-PY
-
-echo "Saadan tulemused dashboardile..."
-
-HTTP_CODE="$(
-    curl --silent --show-error \
-        --connect-timeout 5 --max-time 20 \
-        -o /tmp/hkhk-upload-response.json \
-        -w '%{http_code}' \
-        -X POST "$SERVER_URL" \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $UPLOAD_TOKEN" \
-        --data-binary "@$REPORT_FILE"
-)" || {
-    echo "VIGA: dashboard pole kättesaadav."
-    echo "Raport jäi alles: $REPORT_FILE"
-    exit 1
-}
-
-cat /tmp/hkhk-upload-response.json
+echo
+echo "=========================================="
+echo "HKHK – Debian labori kontroll"
+echo "Õpilane: $STUDENT_NAME"
+echo "Masin:   $MACHINE"
+echo "=========================================="
 echo
 
-if [[ "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
-    echo "OK: $MACHINE tulemused üles laaditud."
+if [[ "$MACHINE" == "Debian1" ]]; then
+    # Debian1: Apache2, PHP ja WordPress
+    check_service "apache2" "Apache2 teenus"
+
+    if command -v php >/dev/null 2>&1; then
+        php_version="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
+        add_check "php" "PHP paigaldus" "PHP paigaldatud" \
+            "${php_version:-versioon teadmata}" "OK"
+    else
+        add_check "php" "PHP paigaldus" "PHP paigaldatud" \
+            "PHP puudub" "FAIL"
+    fi
+
+    if [[ -f /var/www/html/wp-config.php ]]; then
+        add_check "wp-config" "WordPressi konfiguratsioon" \
+            "/var/www/html/wp-config.php olemas" "Fail olemas" "OK"
+    else
+        add_check "wp-config" "WordPressi konfiguratsioon" \
+            "/var/www/html/wp-config.php olemas" "Fail puudub" "FAIL"
+    fi
+
+    if [[ -f /var/www/html/wp-config.php ]]; then
+        add_check "wordpress-files" "WordPressi konfiguratsioonifail" \
+            "Fail loetav" \
+            "$([[ -r /var/www/html/wp-config.php ]] && echo loetav || echo pole-loetav)" \
+            "$([[ -r /var/www/html/wp-config.php ]] && echo OK || echo FAIL)"
+    fi
+
+elif [[ "$MACHINE" == "Debian2" ]]; then
+    # Debian2: MariaDB, BIND9 ja andmebaas
+    check_service "mariadb" "MariaDB teenus"
+    check_service "bind9" "BIND9 teenus"
+
+    if command -v mariadb >/dev/null 2>&1; then
+        if mariadb -N -e \
+            "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='kolmasdomeen_db';" \
+            2>/dev/null | grep -qx 'kolmasdomeen_db'; then
+            add_check "database" "MariaDB andmebaas" \
+                "kolmasdomeen_db olemas" "kolmasdomeen_db olemas" "OK"
+        else
+            add_check "database" "MariaDB andmebaas" \
+                "kolmasdomeen_db olemas" \
+                "Andmebaasi ei leitud või ligipääs puudub" "FAIL"
+        fi
+    else
+        add_check "database" "MariaDB andmebaas" \
+            "kolmasdomeen_db olemas" "mariadb klient puudub" "FAIL"
+    fi
+
+    if command -v named-checkconf >/dev/null 2>&1; then
+        if named-checkconf >/dev/null 2>&1; then
+            add_check "bind-config" "BIND9 konfiguratsioon" \
+                "named-checkconf edukas" "Konfiguratsioon korras" "OK"
+        else
+            add_check "bind-config" "BIND9 konfiguratsioon" \
+                "named-checkconf edukas" "Konfiguratsiooni viga" "FAIL"
+        fi
+    else
+        add_check "bind-config" "BIND9 konfiguratsioon" \
+            "named-checkconf olemas" "Käsk puudub" "FAIL"
+    fi
+fi
+
+# Koosta dashboardile saadetav JSON.
+python3 - "$STUDENT_NAME" "$MACHINE" "$CHECKS_FILE" "$TMP_FILE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+student_name, machine, checks_file, output_file = sys.argv[1:]
+checks = json.loads(Path(checks_file).read_text(encoding="utf-8"))
+
+report = {
+    "student_name": student_name,
+    "machine": machine,
+    "checks": checks
+}
+
+Path(output_file).write_text(
+    json.dumps(report, ensure_ascii=False, indent=2),
+    encoding="utf-8"
+)
+PY
+
+cp "$TMP_FILE" "$REPORT_FILE"
+
+echo
+echo "Kohalik raport: $REPORT_FILE"
+echo
+echo "Saadan tulemused dashboardi..."
+
+# OLULINE PARANDUS:
+# Server app.py loeb X-Upload-Token päist.
+HTTP_CODE="$(
+    curl --silent --show-error \
+        --connect-timeout 5 \
+        --max-time 20 \
+        --output "$REPORT_DIR/response.json" \
+        --write-out '%{http_code}' \
+        -X POST "$DASHBOARD_URL/api/report" \
+        -H "Content-Type: application/json" \
+        -H "X-Upload-Token: $UPLOAD_TOKEN" \
+        --data-binary "@$REPORT_FILE"
+)" || {
+    echo "VIGA: dashboardi serveriga ei õnnestunud ühendust luua."
+    echo "Kontrolli aadressi: $DASHBOARD_URL"
+    exit 1
+}
+
+echo "HTTP vastus: $HTTP_CODE"
+
+if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
+    echo "Tulemused saadeti edukalt dashboardi."
+    cat "$REPORT_DIR/response.json"
+    echo
 else
-    echo "VIGA: üleslaadimine ebaõnnestus (HTTP $HTTP_CODE)."
+    echo "VIGA: tulemuste üleslaadimine ebaõnnestus."
+    echo "Serveri vastus:"
+    cat "$REPORT_DIR/response.json" 2>/dev/null || true
+    echo
+    echo "Kohalik raport on alles: $REPORT_FILE"
     exit 1
 fi
+```
+
 
 
 ```
