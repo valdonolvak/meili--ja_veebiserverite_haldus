@@ -22,153 +22,147 @@ Lisa järgmine sisu:
 
 ```
 
+
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# HKHK tulemuste üleslaadimine Flaski dashboardile
+# HKHK Debian-labori automaatne kontroll ja üleslaadimine
+# Kasutamine:
+#   sudo /usr/local/bin/hkhk-saada-tulemused.sh Debian1
+#   sudo /usr/local/bin/hkhk-saada-tulemused.sh Debian2
+
 SERVER_URL="http://192.168.124.64:5050/api/report"
+
+# Sama väärtus peab olema Flaski serveri UPLOAD_TOKEN muutujas.
+UPLOAD_TOKEN="fe67bb5eaa9d9e96d69aa2a0f8982ae7a56138ce1bbeb65291eb763dc8ab8210"
+
 REPORT_DIR="/var/tmp/hkhk-report"
 
 if [[ $EUID -ne 0 ]]; then
-    echo "Käivita skript sudo abil:"
-    echo "sudo $0 Debian1"
-    echo "sudo $0 Debian2"
+    echo "Käivita skript sudo abil."
     exit 1
 fi
 
 if [[ $# -ne 1 || ( "$1" != "Debian1" && "$1" != "Debian2" ) ]]; then
-    echo "Kasutamine: sudo $0 Debian1|Debian2"
+    echo "Kasutamine: $0 Debian1|Debian2"
     exit 1
 fi
 
 MACHINE="$1"
 
-read -r -p "Sisesta ees- ja perekonnanimi: " STUDENT
-if [[ -z "${STUDENT//[[:space:]]/}" ]]; then
+read -r -p "Õpilase ees- ja perekonnanimi: " STUDENT
+STUDENT="${STUDENT#"${STUDENT%%[![:space:]]*}"}"
+STUDENT="${STUDENT%"${STUDENT##*[![:space:]]}"}"
+
+if [[ -z "$STUDENT" ]]; then
     echo "VIGA: nimi on kohustuslik."
     exit 1
 fi
 
-read -r -s -p "Üleslaadimise võti: " UPLOAD_TOKEN
-echo
-if [[ -z "$UPLOAD_TOKEN" ]]; then
-    echo "VIGA: üleslaadimise võti puudub."
-    exit 1
-fi
-
-mkdir -p "$REPORT_DIR"
-REPORT_FILE="${REPORT_DIR}/${MACHINE}.json"
-
-# Kontrolli tööriistu
 for cmd in python3 curl systemctl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "VIGA: puudub käsk $cmd"
+        echo "VIGA: vajalik käsk puudub: $cmd"
         exit 1
     fi
 done
 
-# Ühised abifunktsioonid
 CHECKS='[]'
 
 add_check() {
-    local id="$1"
-    local description="$2"
-    local expected="$3"
-    local actual="$4"
-    local passed="$5"
-
-    CHECKS=$(
-        CHECKS="$CHECKS" ID="$id" DESCRIPTION="$description" \
-        EXPECTED="$expected" ACTUAL="$actual" PASSED="$passed" \
-        python3 -c '
+    CHECKS="$CHECKS" ID="$1" DESCRIPTION="$2" \
+    EXPECTED="$3" ACTUAL="$4" PASSED="$5" \
+    python3 -c '
 import json, os
-a = json.loads(os.environ["CHECKS"])
-a.append({
+checks = json.loads(os.environ["CHECKS"])
+checks.append({
     "id": os.environ["ID"],
     "description": os.environ["DESCRIPTION"],
     "expected": os.environ["EXPECTED"],
     "actual": os.environ["ACTUAL"],
     "passed": os.environ["PASSED"] == "true"
 })
-print(json.dumps(a, ensure_ascii=False))
-'
-    )
+print(json.dumps(checks, ensure_ascii=False))
+' > /tmp/hkhk-checks.json
+    CHECKS="$(cat /tmp/hkhk-checks.json)"
 }
 
 check_service() {
     local service="$1"
-    local description="$2"
     local state="inactive"
+
     systemctl is-active --quiet "$service" && state="active" || true
 
     if [[ "$state" == "active" ]]; then
-        add_check "$service" "$description" "active" "$state" true
+        add_check "$service" "$service teenus" "active" "$state" true
     else
-        add_check "$service" "$description" "active" "$state" false
+        add_check "$service" "$service teenus" "active" "$state" false
     fi
 }
 
 case "$MACHINE" in
     Debian1)
-        check_service apache2 "Apache2 veebiserver"
-        check_service mariadb "MariaDB teenus (vajaduse korral Debian1 rolli kohanda)"
+        check_service apache2
 
-        php_version="$(php -r 'echo PHP_VERSION;' 2>/dev/null || echo PUUDUB)"
-        if [[ "$php_version" != "PUUDUB" ]]; then
-            add_check php "PHP on paigaldatud" "PHP olemas" "$php_version" true
+        if command -v php >/dev/null 2>&1; then
+            PHP_VERSION="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
         else
-            add_check php "PHP on paigaldatud" "PHP olemas" "$php_version" false
+            PHP_VERSION=""
         fi
 
-        if [[ -f /var/www/html/wp-config.php ]]; then
+        if [[ -n "$PHP_VERSION" ]]; then
+            add_check php "PHP on paigaldatud" "olemas" "$PHP_VERSION" true
+        else
+            add_check php "PHP on paigaldatud" "olemas" "puudub" false
+        fi
+
+        WP_CONFIG="/var/www/html/wp-config.php"
+        if [[ -f "$WP_CONFIG" ]]; then
             add_check wp_config "WordPressi konfiguratsioon" \
-                "/var/www/html/wp-config.php" "olemas" true
+                "$WP_CONFIG olemas" "olemas" true
         else
             add_check wp_config "WordPressi konfiguratsioon" \
-                "/var/www/html/wp-config.php" "puudub" false
+                "$WP_CONFIG olemas" "puudub" false
         fi
         ;;
     Debian2)
-        check_service mariadb "MariaDB andmebaas"
-        check_service bind9 "BIND9 nimeserver"
+        check_service mariadb
+        check_service bind9
 
         if command -v mariadb >/dev/null 2>&1; then
-            db_result="$(mariadb -N -B -e \
+            DB_RESULT="$(mariadb -N -B -e \
                 "SHOW DATABASES LIKE 'kolmasdomeen_db';" 2>/dev/null || true)"
-            if [[ "$db_result" == "kolmasdomeen_db" ]]; then
-                add_check db "WordPressi andmebaas" \
-                    "kolmasdomeen_db" "$db_result" true
-            else
-                add_check db "WordPressi andmebaas" \
-                    "kolmasdomeen_db" "${db_result:-puudub/ligipääs puudub}" false
-            fi
         else
-            add_check db "MariaDB klient" "paigaldatud" "puudub" false
+            DB_RESULT=""
         fi
 
-        if command -v named-checkconf >/dev/null 2>&1; then
-            if named-checkconf >/dev/null 2>&1; then
-                add_check bind_config "BIND9 konfiguratsiooni süntaks" \
-                    "korras" "korras" true
-            else
-                add_check bind_config "BIND9 konfiguratsiooni süntaks" \
-                    "korras" "viga" false
-            fi
+        if [[ "$DB_RESULT" == "kolmasdomeen_db" ]]; then
+            add_check db "WordPressi andmebaas" \
+                "kolmasdomeen_db" "$DB_RESULT" true
         else
-            add_check bind_config "BIND9 kontrolltööriist" \
-                "named-checkconf" "puudub" false
+            add_check db "WordPressi andmebaas" \
+                "kolmasdomeen_db" "${DB_RESULT:-puudub või ligipääs puudub}" false
+        fi
+
+        if command -v named-checkconf >/dev/null 2>&1 &&
+           named-checkconf >/dev/null 2>&1; then
+            add_check bind_config "BIND9 konfiguratsioon" "korras" "korras" true
+        else
+            add_check bind_config "BIND9 konfiguratsioon" "korras" "viga" false
         fi
         ;;
 esac
 
-# Koosta JSON-raport
+mkdir -p "$REPORT_DIR"
+chmod 700 "$REPORT_DIR"
+REPORT_FILE="${REPORT_DIR}/${MACHINE}.json"
+
 STUDENT="$STUDENT" MACHINE="$MACHINE" CHECKS="$CHECKS" \
 REPORT_FILE="$REPORT_FILE" python3 - <<'PY'
 import json, os
 from datetime import datetime, timezone
 
 report = {
-    "student": os.environ["STUDENT"].strip(),
+    "student": os.environ["STUDENT"],
     "machine": os.environ["MACHINE"],
     "timestamp": datetime.now(timezone.utc).isoformat(),
     "checks": json.loads(os.environ["CHECKS"])
@@ -177,11 +171,10 @@ report = {
 with open(os.environ["REPORT_FILE"], "w", encoding="utf-8") as f:
     json.dump(report, f, ensure_ascii=False, indent=2)
 
-print(json.dumps(report, ensure_ascii=False, indent=2))
+print(f"Raport koostatud: {os.environ['REPORT_FILE']}")
 PY
 
-echo
-echo "Saadan raporti aadressile $SERVER_URL ..."
+echo "Saadan tulemused dashboardile..."
 
 HTTP_CODE="$(
     curl --silent --show-error \
@@ -193,8 +186,8 @@ HTTP_CODE="$(
         -H "Authorization: Bearer $UPLOAD_TOKEN" \
         --data-binary "@$REPORT_FILE"
 )" || {
-    echo "VIGA: serveriga ei saadud ühendust."
-    echo "Kohalik raport: $REPORT_FILE"
+    echo "VIGA: dashboard pole kättesaadav."
+    echo "Raport jäi alles: $REPORT_FILE"
     exit 1
 }
 
@@ -202,12 +195,12 @@ cat /tmp/hkhk-upload-response.json
 echo
 
 if [[ "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
-    echo "OK: $MACHINE raport saadeti serverisse (HTTP $HTTP_CODE)."
+    echo "OK: $MACHINE tulemused üles laaditud."
 else
     echo "VIGA: üleslaadimine ebaõnnestus (HTTP $HTTP_CODE)."
-    echo "Kontrolli Flaski API aadressi, võtit ja serveri logisid."
     exit 1
 fi
+
 
 ```
 
