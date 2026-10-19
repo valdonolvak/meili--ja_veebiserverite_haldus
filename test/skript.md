@@ -295,3 +295,11 @@ Oluline täpsustus: ülaltoodud skript on ühine näidis, mitte veel sinu ülesa
 
 sudo grep -nE 'UPLOAD_TOKEN|X-Upload-Token|Authorization|curl' \
   /usr/local/bin/hkhk-saada-tulemused.sh
+
+
+UPLOAD_TOKEN=fe67bb5eaa9d9e96d69aa2a0f8982ae7a56138ce1bbeb65291eb763dc8ab8210
+ADMIN_USER=admin
+ADMIN_PASSWORD=SalajaneParool123
+FLASK_SECRET_KEY=2680b0daf78e5823b7d9e7cdc3c71f04650bb1a4eda14a477cb721c37b43cc83
+DASHBOARD_DB=/var/lib/hkhk-dashboard/dashboard.sqlite3
+
