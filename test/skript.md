@@ -38,7 +38,7 @@ REPORT_DIR="/var/tmp/hkhk-report"
 # Pane siia sama võti, mis on Ubuntu dashboardi serveri
 # failis /etc/hkhk-dashboard.env.
 # Ära jaga seda võtit teistega.
-UPLOAD_TOKEN="ASENDA_SIIA_SERVERI_SAMA_64_MARGILINE_VOTI"
+UPLOAD_TOKEN="fe67bb5eaa9d9e96d69aa2a0f8982ae7a56138ce1bbeb65291eb763dc8ab8210"
 
 MACHINE="${1:-}"
 
