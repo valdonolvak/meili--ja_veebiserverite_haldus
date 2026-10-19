@@ -21,7 +21,8 @@ sudo nano /usr/local/bin/hkhk-saada-tulemused.sh
 Lisa järgmine sisu:
 
 ```bash
- #!/usr/bin/env bash
+
+#!/usr/bin/env bash
 set -Eeuo pipefail
 
 # HKHK WordPress + MariaDB labori kontroll, versioon 2.2
@@ -116,6 +117,107 @@ if [[ "$MACHINE" == "Debian1" ]]; then
     add_check wordpress-files "WordPressi failid" "wp-config.php WordPressi DocumentRootis" "$wpconfig" OK
     [[ -r "$wpconfig" ]] && add_check wp-config "WordPressi konfiguratsioonifail" "Fail loetav" "Fail loetav" OK \
       || add_check wp-config "WordPressi konfiguratsioonifail" "Fail loetav" "Fail pole loetav" FAIL
+
+    dbname="$(get_php_constant "$wpconfig" DB_NAME)"; dbuser="$(get_php_constant "$wpconfig" DB_USER)"
+    dbhost="$(get_php_constant "$wpconfig" DB_HOST)"; dbpass="$(get_php_constant "$wpconfig" DB_PASSWORD)"
+    [[ -n "$dbname" ]] || dbname="MÄÄRAMATA"; [[ -n "$dbuser" ]] || dbuser="MÄÄRAMATA"; [[ -n "$dbhost" ]] || dbhost="MÄÄRAMATA"
+    [[ "$dbname" == "kolmasdomeen_db" ]] && s=OK || s=FAIL
+    add_check wp-db-name "WordPress DB_NAME" "kolmasdomeen_db" "$dbname" "$s"
+    [[ "$dbuser" == "wpuser" ]] && s=OK || s=FAIL
+    add_check wp-db-user "WordPress DB_USER" "wpuser" "$dbuser" "$s"
+    [[ "$dbhost" == "$DEBIAN2_IP" ]] && s=OK || s=FAIL
+    add_check wp-db-host "WordPress DB_HOST" "$DEBIAN2_IP" "$dbhost" "$s"
+
+    # See on Debian1 kliendipoolne rakenduseühenduse test, mitte Debian2 konfiguratsiooni kontroll.
+    if php -m 2>/dev/null | grep -qi '^mysqli$'; then
+      if DBHOST="$dbhost" DBUSER="$dbuser" DBPASS="$dbpass" DBNAME="$dbname" php -r '$c=@new mysqli(getenv("DBHOST"),getenv("DBUSER"),getenv("DBPASS"),getenv("DBNAME")); if($c->connect_errno) exit(1); $c->close();' >/dev/null 2>&1; then
+        add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "Ühendus aadressile $DEBIAN2_IP toimib" "Ühendus õnnestus" OK
+      else
+        add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "Ühendus aadressile $DEBIAN2_IP toimib" "Ühendus ebaõnnestus; kontrolli võrku, kasutajat, õigusi ja parooli" FAIL
+      fi
+    else
+      add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "PHP mysqli ühendus" "PHP mysqli laiendus puudub; ühendust ei saanud testida" WARN
+    fi
+  else
+    add_check wordpress-files "WordPressi failid" "wp-config.php WordPressi DocumentRootis" "wp-config.php ei leitud" FAIL
+    add_check wp-config "WordPressi konfiguratsioonifail" "wp-config.php olemas" "Fail puudub" FAIL
+    add_check wp-db-name "WordPress DB_NAME" "kolmasdomeen_db" "Ei saa kontrollida: wp-config.php puudub" FAIL
+    add_check wp-db-user "WordPress DB_USER" "wpuser" "Ei saa kontrollida: wp-config.php puudub" FAIL
+    add_check wp-db-host "WordPress DB_HOST" "$DEBIAN2_IP" "Ei saa kontrollida: wp-config.php puudub" FAIL
+    add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "Ühendus toimib" "Ei saa kontrollida: wp-config.php puudub" FAIL
+  fi
+
+elif [[ "$MACHINE" == "Debian2" ]]; then
+  # Debian2 kontrollib ainult andmebaasi- ja nimeserveri osa.
+  check_service mariadb mariadb "MariaDB teenus"
+  check_service bind9 bind9 "BIND9 teenus"
+
+  if command -v mariadb >/dev/null 2>&1; then
+    if dbs="$(mariadb -N -e "SHOW DATABASES LIKE 'kolmasdomeen_db';" 2>/dev/null)" && [[ "$dbs" == "kolmasdomeen_db" ]]; then
+      add_check database "MariaDB andmebaas" "kolmasdomeen_db olemas" "$dbs" OK
+    else add_check database "MariaDB andmebaas" "kolmasdomeen_db olemas" "Puudub või kohalik admin-autentimine ei võimaldanud kontrollida" FAIL; fi
+
+    if grants="$(mariadb -N -e "SELECT CONCAT(User,'@',Host) FROM mysql.user WHERE User='wpuser';" 2>/dev/null)"; then
+      host="$(printf '%s\n' "$grants" | sed -n 's/^wpuser@//p' | grep -Fx "$DEBIAN1_IP" | head -n1 || true)"
+      if [[ -n "$host" ]]; then
+        add_check db-user "MariaDB kasutaja wpuser" "wpuser@$DEBIAN1_IP" "wpuser@$host" OK
+        if privs="$(mariadb -N -e "SHOW GRANTS FOR 'wpuser'@'$host';" 2>/dev/null)" && printf '%s\n' "$privs" | grep -Fq 'kolmasdomeen_db'; then
+          add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "Leiti kolmasdomeen_db õiguste kirje" OK
+        else add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "Õigusi ei saanud kinnitada" FAIL; fi
+      else
+        add_check db-user "MariaDB kasutaja wpuser" "wpuser@$DEBIAN1_IP" "Leitud: ${grants:-wpuser kasutaja puudub}" FAIL
+        add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "Õiget wpuser@$DEBIAN1_IP kasutajat ei leitud" FAIL
+      fi
+    else
+      add_check db-user "MariaDB kasutaja wpuser" "wpuser@$DEBIAN1_IP" "Kohalik admin-autentimine ei võimaldanud kasutajat kontrollida" WARN
+      add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "Kohalik admin-autentimine ei võimaldanud õigusi kontrollida" WARN
+    fi
+  else
+    add_check database "MariaDB andmebaas" "kolmasdomeen_db olemas" "mariadb klient puudub" FAIL
+    add_check db-user "MariaDB kasutaja wpuser" "wpuser@$DEBIAN1_IP" "mariadb klient puudub" FAIL
+    add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "mariadb klient puudub" FAIL
+  fi
+
+  if command -v named-checkconf >/dev/null 2>&1 && named-checkconf >/dev/null 2>&1; then
+    add_check bind-config "BIND9 konfiguratsioon" "named-checkconf edukas" "Konfiguratsioon korras" OK
+  else add_check bind-config "BIND9 konfiguratsioon" "named-checkconf edukas" "Konfiguratsiooni viga või käsk puudub" FAIL; fi
+
+  if command -v ss >/dev/null 2>&1; then
+    listen="$(ss -ltn 2>/dev/null | awk '$4 ~ /:3306$/ {print $4}' | paste -sd ', ' -)"
+    if [[ -n "$listen" ]] && ! grep -Eq '(^|[ ,])127\.0\.0\.1:3306($|[ ,])|(^|[ ,])\[::1\]:3306($|[ ,])' <<< "$listen"; then
+      add_check db-listen "MariaDB TCP kuulamine" "3306 port kuulab kaugühendusi" "$listen" OK
+    else add_check db-listen "MariaDB TCP kuulamine" "3306 port kuulab kaugühendusi" "${listen:-3306 port ei kuula}" FAIL; fi
+  else add_check db-listen "MariaDB TCP kuulamine" "3306 port kuulab kaugühendusi" "ss käsk puudub" WARN; fi
+
+  bindfile="/etc/mysql/mariadb.conf.d/50-server.cnf"
+  bindval="$(awk -F= '/^[[:space:]]*bind-address[[:space:]]*=/ {gsub(/[[:space:]]/,"",$2); print $2; exit}' "$bindfile" 2>/dev/null || true)"
+  if [[ "$bindval" == "0.0.0.0" || "$bindval" == "$DEBIAN2_IP" ]]; then
+    add_check db-bind-address "MariaDB bind-address" "0.0.0.0 või $DEBIAN2_IP" "$bindval" OK
+  else add_check db-bind-address "MariaDB bind-address" "0.0.0.0 või $DEBIAN2_IP" "${bindval:-seadistust ei leitud}" FAIL; fi
+fi
+
+python3 - "$STUDENT_NAME" "$MACHINE" "$CHECKS_FILE" "$REPORT_FILE" <<'PY'
+import json,socket,sys
+from pathlib import Path
+name,machine,checks_file,report_file=sys.argv[1:]
+report={"student_name":name,"machine":machine,"checks":json.loads(Path(checks_file).read_text()),"hostname":socket.gethostname(),"script_version":"2.2"}
+Path(report_file).write_text(json.dumps(report,ensure_ascii=False,indent=2))
+PY
+chmod 600 "$REPORT_FILE"
+
+echo
+echo "Raport salvestati: $REPORT_FILE"
+echo "Saadan tulemused dashboardi..."
+http_code="$(curl --silent --show-error --connect-timeout 5 --max-time 20 --output "$REPORT_DIR/response.json" --write-out '%{http_code}' \
+  -X POST "${DASHBOARD_URL%/}/api/report" -H 'Content-Type: application/json' -H "X-Upload-Token: $UPLOAD_TOKEN" --data-binary "@$REPORT_FILE")" || { echo "VIGA: dashboardiga ei saanud ühendust."; exit 1; }
+echo "HTTP vastus: $http_code"
+if [[ "$http_code" == "201" || "$http_code" == "200" ]]; then
+  cat "$REPORT_DIR/response.json"; echo; echo "Üleslaadimine õnnestus."
+else
+  cat "$REPORT_DIR/response.json" 2>/dev/null || true; echo "Üleslaadimine ebaõnnestus."; exit 1
+fi
+
+
 ```
 
 See kasutab `curl`-i HTTP POST-päringut JSON-andmete saatmiseks. [curl-i JSON-päringute dokumentatsioon](https://everything.curl.dev/http/post/json.html?utm_source=chatgpt.com).
