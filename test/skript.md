@@ -20,262 +20,240 @@ sudo nano /usr/local/bin/hkhk-saada-tulemused.sh
 
 Lisa järgmine sisu:
 
-```
 ```bash
+
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# ==========================================================
-# HKHK – Debian labori tulemuste kontroll ja üleslaadimine
-# Käivitamine:
-#   sudo /usr/local/bin/hkhk-saada-tulemused.sh Debian1
-#   sudo /usr/local/bin/hkhk-saada-tulemused.sh Debian2
-# ==========================================================
-
-DASHBOARD_URL="http://192.168.124.64:5050"
+# HKHK WordPress + MariaDB labori kontroll
+# Kasutamine: sudo /usr/local/bin/hkhk-saada-tulemused.sh Debian1|Debian2
+# Võti pannakse eraldi faili /etc/hkhk-dashboard-client.env:
+# UPLOAD_TOKEN='...'
+DASHBOARD_URL="${DASHBOARD_URL:-http://192.168.124.64:5050}"
+TOKEN_FILE="/etc/hkhk-dashboard-client.env"
 REPORT_DIR="/var/tmp/hkhk-report"
-
-# Pane siia sama võti, mis on Ubuntu dashboardi serveri
-# failis /etc/hkhk-dashboard.env.
-# Ära jaga seda võtit teistega.
-UPLOAD_TOKEN="fe67bb5eaa9d9e96d69aa2a0f8982ae7a56138ce1bbeb65291eb763dc8ab8210"
-
 MACHINE="${1:-}"
 
-if [[ $EUID -ne 0 ]]; then
-    echo "VIGA: käivita skript sudo abil."
-    exit 1
-fi
-
+if [[ $EUID -ne 0 ]]; then echo "Käivita sudo abil."; exit 1; fi
 if [[ "$MACHINE" != "Debian1" && "$MACHINE" != "Debian2" ]]; then
-    echo "Kasutamine:"
-    echo "  sudo $0 Debian1"
-    echo "  sudo $0 Debian2"
-    exit 1
+  echo "Kasutamine: sudo $0 Debian1|Debian2"; exit 1
 fi
-
 for cmd in python3 curl systemctl; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "VIGA: puudub käsk $cmd"
-        echo "Paigalda see enne skripti käivitamist."
-        exit 1
-    fi
+  command -v "$cmd" >/dev/null 2>&1 || { echo "Puudub vajalik käsk: $cmd"; exit 1; }
 done
-
-if [[ "$UPLOAD_TOKEN" == "ASENDA_SIIA_SERVERI_SAMA_64_MARGILINE_VOTI" ]]; then
-    echo "VIGA: määra skriptis serveriga sama UPLOAD_TOKEN."
-    exit 1
+if [[ ! -r "$TOKEN_FILE" ]]; then
+  echo "Puudub $TOKEN_FILE. Loo see ja lisa UPLOAD_TOKEN='serveri sama võti'."; exit 1
 fi
+# shellcheck disable=SC1090
+source "$TOKEN_FILE"
+: "${UPLOAD_TOKEN:?UPLOAD_TOKEN pole seadistatud failis $TOKEN_FILE}"
 
 read -r -p "Õpilase ees- ja perekonnanimi: " STUDENT_NAME
 STUDENT_NAME="$(printf '%s' "$STUDENT_NAME" | xargs)"
-
-if [[ -z "$STUDENT_NAME" ]]; then
-    echo "VIGA: õpilase nimi ei tohi olla tühi."
-    exit 1
-fi
+[[ -n "$STUDENT_NAME" ]] || { echo "Õpilase nimi ei tohi olla tühi."; exit 1; }
 
 mkdir -p "$REPORT_DIR"
-REPORT_FILE="$REPORT_DIR/${MACHINE}.json"
-TMP_FILE="$(mktemp)"
-trap 'rm -f "$TMP_FILE"' EXIT
-
+chmod 700 "$REPORT_DIR"
 CHECKS_FILE="$(mktemp)"
-trap 'rm -f "$TMP_FILE" "$CHECKS_FILE"' EXIT
-
-add_check() {
-    local id="$1"
-    local title="$2"
-    local expected="$3"
-    local actual="$4"
-    local status="$5"
-
-    python3 - "$CHECKS_FILE" "$id" "$title" "$expected" "$actual" "$status" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path, check_id, title, expected, actual, status = sys.argv[1:]
-p = Path(path)
-
-checks = []
-if p.exists() and p.stat().st_size:
-    checks = json.loads(p.read_text(encoding="utf-8"))
-
-checks.append({
-    "id": check_id,
-    "title": title,
-    "expected": expected,
-    "actual": actual,
-    "status": status
-})
-
-p.write_text(
-    json.dumps(checks, ensure_ascii=False, indent=2),
-    encoding="utf-8"
-)
-PY
-
-    if [[ "$status" == "OK" ]]; then
-        printf '[OK]  %s — tegelik: %s\n' "$title" "$actual"
-    else
-        printf '[VIGA] %s — oodatud: %s; tegelik: %s\n' \
-            "$title" "$expected" "$actual"
-    fi
-}
-
-check_service() {
-    local service="$1"
-    local title="$2"
-    local actual status
-
-    if systemctl is-active --quiet "$service"; then
-        actual="active"
-        status="OK"
-    else
-        actual="$(systemctl is-active "$service" 2>/dev/null || true)"
-        [[ -n "$actual" ]] || actual="inactive/puudub"
-        status="FAIL"
-    fi
-
-    add_check "$service" "$title" "active" "$actual" "$status"
-}
-
-# Alusta tühja kontrollide nimekirjaga.
+REPORT_FILE="$REPORT_DIR/${MACHINE}.json"
+trap 'rm -f "$CHECKS_FILE"' EXIT
 printf '[]\n' > "$CHECKS_FILE"
 
-echo
-echo "=========================================="
-echo "HKHK – Debian labori kontroll"
-echo "Õpilane: $STUDENT_NAME"
-echo "Masin:   $MACHINE"
-echo "=========================================="
-echo
+add_check() {
+  local id="$1" title="$2" expected="$3" actual="$4" status="$5" details="${6:-}"
+  python3 - "$CHECKS_FILE" "$id" "$title" "$expected" "$actual" "$status" "$details" <<'PY'
+import json, sys
+from pathlib import Path
+p=Path(sys.argv[1])
+arr=json.loads(p.read_text())
+arr.append({"id":sys.argv[2],"title":sys.argv[3],"expected":sys.argv[4],
+            "actual":sys.argv[5],"status":sys.argv[6],"details":sys.argv[7]})
+p.write_text(json.dumps(arr,ensure_ascii=False,indent=2))
+PY
+  printf '[%s] %s — %s\n' "$status" "$title" "$actual"
+}
+check_service() {
+  local service="$1" id="$2" title="$3" actual status
+  if systemctl is-active --quiet "$service"; then actual="active"; status="OK"
+  else actual="$(systemctl is-active "$service" 2>/dev/null || true)"; actual="${actual:-inactive/puudub}"; status="FAIL"; fi
+  add_check "$id" "$title" "active" "$actual" "$status"
+}
+find_wp_config() {
+  local f root
+  # Juhendi DocumentRoot on /var/www/kolmasdomeen.perenimi.local.
+  # Otsi esmalt aktiivsete VirtualHostide DocumentRoot kataloogidest.
+  while IFS= read -r root; do
+    root="${root%\"}"; root="${root#\"}"; root="${root%\'}"; root="${root#\'}"
+    [[ -n "$root" && -f "$root/wp-config.php" ]] && { echo "$root/wp-config.php"; return 0; }
+  done < <(grep -RhoE '^[[:space:]]*DocumentRoot[[:space:]]+[^[:space:]]+' /etc/apache2/sites-enabled 2>/dev/null | awk '{print $2}')
+  for f in /var/www/*/wp-config.php /var/www/html/wp-config.php; do
+    [[ -f "$f" ]] && { echo "$f"; return 0; }
+  done
+  return 1
+}
+get_php_constant() {
+  local file="$1" key="$2"
+  python3 - "$file" "$key" <<'PY'
+import re,sys
+text=open(sys.argv[1],encoding="utf-8",errors="ignore").read()
+key=re.escape(sys.argv[2])
+m=re.search(r"define\s*\(\s*['\"]"+key+r"['\"]\s*,\s*(['\"])(.*?)\1\s*\)",text,re.S)
+print(m.group(2).strip() if m else "")
+PY
+}
+
+echo "HKHK labori kontroll — $MACHINE — $STUDENT_NAME"
 
 if [[ "$MACHINE" == "Debian1" ]]; then
-    # Debian1: Apache2, PHP ja WordPress
-    check_service "apache2" "Apache2 teenus"
+  check_service apache2 apache2 "Apache2 teenus"
+  if command -v php >/dev/null 2>&1; then
+    ver="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
+    add_check php "PHP paigaldus" "PHP olemas" "${ver:-versioon teadmata}" OK
+  else add_check php "PHP paigaldus" "PHP olemas" "PHP puudub" FAIL; fi
 
-    if command -v php >/dev/null 2>&1; then
-        php_version="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
-        add_check "php" "PHP paigaldus" "PHP paigaldatud" \
-            "${php_version:-versioon teadmata}" "OK"
+  # Kontrolli Apache konfiguratsiooni ja saidi aktiveeritust.
+  if command -v apache2ctl >/dev/null 2>&1 && apache2ctl configtest >/dev/null 2>&1; then
+    add_check virtualhost "Apache VirtualHosti konfiguratsioon" "Apache konfiguratsioon korras" "Konfiguratsioon korras" OK
+  else add_check virtualhost "Apache VirtualHosti konfiguratsioon" "Apache konfiguratsioon korras" "Konfiguratsiooni viga või apache2ctl puudub" FAIL; fi
+
+  wpconfig=""
+  if wpconfig="$(find_wp_config)"; then
+    wpdir="$(dirname "$wpconfig")"
+    add_check wordpress-files "WordPressi failid" "WordPressi wp-config.php olemas sobivas DocumentRootis" "$wpconfig" OK
+    if [[ -r "$wpconfig" ]]; then
+      add_check wp-config "WordPressi konfiguratsioonifail" "Fail loetav" "Fail loetav" OK
+    else add_check wp-config "WordPressi konfiguratsioonifail" "Fail loetav" "Fail pole loetav" FAIL; fi
+
+    dbname="$(get_php_constant "$wpconfig" DB_NAME)"
+    dbuser="$(get_php_constant "$wpconfig" DB_USER)"
+    dbhost="$(get_php_constant "$wpconfig" DB_HOST)"
+    [[ -n "$dbname" ]] || dbname="MÄÄRAMATA"
+    [[ -n "$dbuser" ]] || dbuser="MÄÄRAMATA"
+    [[ -n "$dbhost" ]] || dbhost="MÄÄRAMATA"
+
+    [[ "$dbname" == "kolmasdomeen_db" ]] && s=OK || s=FAIL
+    add_check wp-db-name "WordPress DB_NAME" "kolmasdomeen_db" "$dbname" "$s"
+
+    [[ "$dbuser" == "wpuser" ]] && s=OK || s=FAIL
+    add_check wp-db-user "WordPress DB_USER" "wpuser" "$dbuser" "$s"
+
+    # Võrguosa 10.0.X.25 võib erineda; hosti kontrollitakse IP-na või DNS-nimena.
+    if [[ "$dbhost" =~ ^10\.0\.[0-9]{1,3}\.25$ ]]; then s=OK
+    else s=FAIL; fi
+    add_check wp-db-host "WordPress DB_HOST" "10.0.X.25 (MariaDB server)" "$dbhost" "$s"
+
+    # Kasuta PHP mysqli ühendust, kui saadaval; parooli ei kuvata.
+    if php -m 2>/dev/null | grep -qi '^mysqli$'; then
+      dbpass="$(get_php_constant "$wpconfig" DB_PASSWORD)"
+      if DBHOST="$dbhost" DBUSER="$dbuser" DBPASS="$dbpass" DBNAME="$dbname" php -r '
+        $c=@new mysqli(getenv("DBHOST"),getenv("DBUSER"),getenv("DBPASS"),getenv("DBNAME"));
+        if ($c->connect_errno) {fwrite(STDERR,"connection failed"); exit(1);}
+        echo "Ühendus õnnestus"; $c->close();
+      ' >/dev/null 2>&1; then
+        add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "Kaugühendus toimib" "Ühendus õnnestus" OK
+      else
+        add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "Kaugühendus toimib" "Ühendus ebaõnnestus (kontrolli võrku, kasutajat, õigusi ja parooli)" FAIL
+      fi
     else
-        add_check "php" "PHP paigaldus" "PHP paigaldatud" \
-            "PHP puudub" "FAIL"
+      add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "PHP mysqli ühendus" "PHP mysqli laiendus puudub; ühendust ei saanud testida" WARN
     fi
-
-    if [[ -f /var/www/html/wp-config.php ]]; then
-        add_check "wp-config" "WordPressi konfiguratsioon" \
-            "/var/www/html/wp-config.php olemas" "Fail olemas" "OK"
-    else
-        add_check "wp-config" "WordPressi konfiguratsioon" \
-            "/var/www/html/wp-config.php olemas" "Fail puudub" "FAIL"
-    fi
-
-    if [[ -f /var/www/html/wp-config.php ]]; then
-        add_check "wordpress-files" "WordPressi konfiguratsioonifail" \
-            "Fail loetav" \
-            "$([[ -r /var/www/html/wp-config.php ]] && echo loetav || echo pole-loetav)" \
-            "$([[ -r /var/www/html/wp-config.php ]] && echo OK || echo FAIL)"
-    fi
+  else
+    add_check wordpress-files "WordPressi failid" "wp-config.php WordPressi DocumentRootis" "wp-config.php ei leitud" FAIL
+    add_check wp-config "WordPressi konfiguratsioonifail" "wp-config.php olemas" "Fail puudub" FAIL
+    add_check wp-db-name "WordPress DB_NAME" "kolmasdomeen_db" "Ei saa kontrollida: wp-config.php puudub" FAIL
+    add_check wp-db-user "WordPress DB_USER" "wpuser" "Ei saa kontrollida: wp-config.php puudub" FAIL
+    add_check wp-db-host "WordPress DB_HOST" "10.0.X.25" "Ei saa kontrollida: wp-config.php puudub" FAIL
+    add_check wp-db-connect "WordPressi ühendus MariaDB-ga" "Kaugühendus toimib" "Ei saa kontrollida: wp-config.php puudub" FAIL
+  fi
 
 elif [[ "$MACHINE" == "Debian2" ]]; then
-    # Debian2: MariaDB, BIND9 ja andmebaas
-    check_service "mariadb" "MariaDB teenus"
-    check_service "bind9" "BIND9 teenus"
+  check_service mariadb mariadb "MariaDB teenus"
+  check_service bind9 bind9 "BIND9 teenus"
 
-    if command -v mariadb >/dev/null 2>&1; then
-        if mariadb -N -e \
-            "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='kolmasdomeen_db';" \
-            2>/dev/null | grep -qx 'kolmasdomeen_db'; then
-            add_check "database" "MariaDB andmebaas" \
-                "kolmasdomeen_db olemas" "kolmasdomeen_db olemas" "OK"
-        else
-            add_check "database" "MariaDB andmebaas" \
-                "kolmasdomeen_db olemas" \
-                "Andmebaasi ei leitud või ligipääs puudub" "FAIL"
-        fi
+  if command -v mariadb >/dev/null 2>&1; then
+    if dbs="$(mariadb -N -e "SHOW DATABASES LIKE 'kolmasdomeen_db';" 2>/dev/null)" && [[ "$dbs" == "kolmasdomeen_db" ]]; then
+      add_check database "MariaDB andmebaas" "kolmasdomeen_db olemas" "$dbs" OK
     else
-        add_check "database" "MariaDB andmebaas" \
-            "kolmasdomeen_db olemas" "mariadb klient puudub" "FAIL"
+      add_check database "MariaDB andmebaas" "kolmasdomeen_db olemas" "Puudub või kohalik admin-autentimine ei võimaldanud kontrollida" FAIL
     fi
+    # User/host/grants kontroll; kasutajate loend eeldab kohalikku adminõigust.
+    if grants="$(mariadb -N -e "SELECT CONCAT(User,'@',Host) FROM mysql.user WHERE User='wpuser';" 2>/dev/null)"; then
+      if printf '%s\n' "$grants" | grep -Eq '^wpuser@10\.0\.[0-9]{1,3}\.20$'; then
+        add_check db-user "MariaDB kasutaja wpuser" "wpuser@10.0.X.20" "$(printf '%s\n' "$grants" | paste -sd ', ' -)" OK
+      else
+        add_check db-user "MariaDB kasutaja wpuser" "wpuser@10.0.X.20" "${grants:-wpuser kasutaja puudub või vale Host}" FAIL
+      fi
+      if privs="$(mariadb -N -e "SHOW GRANTS FOR 'wpuser'@'$(printf '%s\n' "$grants" | sed -n 's/^wpuser@//p' | grep -E '^10\.0\.[0-9]{1,3}\.20$' | head -n1)';" 2>/dev/null)" && printf '%s\n' "$privs" | grep -Fq 'kolmasdomeen_db'; then
+        add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "$(printf '%s\n' "$privs" | paste -sd '; ' -)" OK
+      else
+        add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "Õigusi ei saanud kinnitada" FAIL
+      fi
+    else
+      add_check db-user "MariaDB kasutaja wpuser" "wpuser@10.0.X.20" "Kohalik admin-autentimine ei võimaldanud kasutajat kontrollida" WARN
+      add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "Kohalik admin-autentimine ei võimaldanud õigusi kontrollida" WARN
+    fi
+  else
+    add_check database "MariaDB andmebaas" "kolmasdomeen_db olemas" "mariadb klient puudub" FAIL
+    add_check db-user "MariaDB kasutaja wpuser" "wpuser@10.0.X.20" "mariadb klient puudub" FAIL
+    add_check db-grants "MariaDB õigused" "wpuser õigused kolmasdomeen_db.* andmebaasile" "mariadb klient puudub" FAIL
+  fi
 
-    if command -v named-checkconf >/dev/null 2>&1; then
-        if named-checkconf >/dev/null 2>&1; then
-            add_check "bind-config" "BIND9 konfiguratsioon" \
-                "named-checkconf edukas" "Konfiguratsioon korras" "OK"
-        else
-            add_check "bind-config" "BIND9 konfiguratsioon" \
-                "named-checkconf edukas" "Konfiguratsiooni viga" "FAIL"
-        fi
+  if command -v named-checkconf >/dev/null 2>&1 && named-checkconf >/dev/null 2>&1; then
+    add_check bind-config "BIND9 konfiguratsioon" "named-checkconf edukas" "Konfiguratsioon korras" OK
+  else
+    add_check bind-config "BIND9 konfiguratsioon" "named-checkconf edukas" "Konfiguratsiooni viga või käsk puudub" FAIL
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    listen="$(ss -ltn 2>/dev/null | awk '$4 ~ /:3306$/ {print $4}' | paste -sd ', ' -)"
+    if [[ -n "$listen" ]] && [[ "$listen" != *"127.0.0.1:3306"* ]]; then
+      add_check db-listen "MariaDB TCP kuulamine" "3306 port kuulab kaugühendusi" "$listen" OK
     else
-        add_check "bind-config" "BIND9 konfiguratsioon" \
-            "named-checkconf olemas" "Käsk puudub" "FAIL"
+      add_check db-listen "MariaDB TCP kuulamine" "3306 port kuulab kaugühendusi" "${listen:-3306 port ei kuula}" FAIL
     fi
+  else
+    add_check db-listen "MariaDB TCP kuulamine" "3306 port kuulab kaugühendusi" "ss käsk puudub" WARN
+  fi
+
+  bindfile="/etc/mysql/mariadb.conf.d/50-server.cnf"
+  bindval="$(awk -F= '/^[[:space:]]*bind-address[[:space:]]*=/ {gsub(/[[:space:]]/,"",$2); print $2; exit}' "$bindfile" 2>/dev/null || true)"
+  if [[ "$bindval" == "0.0.0.0" || "$bindval" =~ ^10\.0\.[0-9]{1,3}\.25$ ]]; then
+    add_check db-bind-address "MariaDB bind-address" "0.0.0.0 või Debian2 IP" "$bindval" OK
+  else
+    add_check db-bind-address "MariaDB bind-address" "0.0.0.0 või Debian2 IP" "${bindval:-seadistust ei leitud}" FAIL
+  fi
 fi
 
-# Koosta dashboardile saadetav JSON.
-python3 - "$STUDENT_NAME" "$MACHINE" "$CHECKS_FILE" "$TMP_FILE" <<'PY'
-import json
-import sys
+python3 - "$STUDENT_NAME" "$MACHINE" "$CHECKS_FILE" "$REPORT_FILE" <<'PY'
+import json, socket, sys
 from pathlib import Path
-
-student_name, machine, checks_file, output_file = sys.argv[1:]
-checks = json.loads(Path(checks_file).read_text(encoding="utf-8"))
-
-report = {
-    "student_name": student_name,
-    "machine": machine,
-    "checks": checks
-}
-
-Path(output_file).write_text(
-    json.dumps(report, ensure_ascii=False, indent=2),
-    encoding="utf-8"
-)
+name,machine,checks_file,report_file=sys.argv[1:]
+report={"student_name":name,"machine":machine,
+        "checks":json.loads(Path(checks_file).read_text()),
+        "hostname":socket.gethostname(),"script_version":"2.1"}
+Path(report_file).write_text(json.dumps(report,ensure_ascii=False,indent=2))
 PY
-
-cp "$TMP_FILE" "$REPORT_FILE"
+chmod 600 "$REPORT_FILE"
 
 echo
-echo "Kohalik raport: $REPORT_FILE"
-echo
+echo "Raport salvestati: $REPORT_FILE"
 echo "Saadan tulemused dashboardi..."
-
-# OLULINE PARANDUS:
-# Server app.py loeb X-Upload-Token päist.
-HTTP_CODE="$(
-    curl --silent --show-error \
-        --connect-timeout 5 \
-        --max-time 20 \
-        --output "$REPORT_DIR/response.json" \
-        --write-out '%{http_code}' \
-        -X POST "$DASHBOARD_URL/api/report" \
-        -H "Content-Type: application/json" \
-        -H "X-Upload-Token: $UPLOAD_TOKEN" \
-        --data-binary "@$REPORT_FILE"
-)" || {
-    echo "VIGA: dashboardi serveriga ei õnnestunud ühendust luua."
-    echo "Kontrolli aadressi: $DASHBOARD_URL"
-    exit 1
-}
-
-echo "HTTP vastus: $HTTP_CODE"
-
-if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
-    echo "Tulemused saadeti edukalt dashboardi."
-    cat "$REPORT_DIR/response.json"
-    echo
+http_code="$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
+  --output "$REPORT_DIR/response.json" --write-out '%{http_code}' \
+  -X POST "$DASHBOARD_URL/api/report" \
+  -H 'Content-Type: application/json' \
+  -H "X-Upload-Token: $UPLOAD_TOKEN" \
+  --data-binary "@$REPORT_FILE")" || {
+    echo "VIGA: dashboardiga ei saanud ühendust."; exit 1;
+  }
+echo "HTTP vastus: $http_code"
+if [[ "$http_code" == "201" || "$http_code" == "200" ]]; then
+  cat "$REPORT_DIR/response.json"; echo
+  echo "Üleslaadimine õnnestus."
 else
-    echo "VIGA: tulemuste üleslaadimine ebaõnnestus."
-    echo "Serveri vastus:"
-    cat "$REPORT_DIR/response.json" 2>/dev/null || true
-    echo
-    echo "Kohalik raport on alles: $REPORT_FILE"
-    exit 1
+  cat "$REPORT_DIR/response.json" 2>/dev/null || true
+  echo "Üleslaadimine ebaõnnestus."; exit 1
 fi
-```
 
 
 
