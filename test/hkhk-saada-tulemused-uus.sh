@@ -1,147 +1,251 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-# hkhk-saada-tulemused.sh - Täiendatud versioon osalise hindamisega (25%, 50%, 75%, 100%)
-SERVER_URL="http://192.168.124.64:5050/api/upload" # Kohanda see õigeks Flask endpointiks
-USER_NAME=$(whoami)
-HOST_NAME=$(hostname)
+# ==========================================================
+# HKHK – Debian labori kontroll ja tulemuste üleslaadimine
+# Täiendatud versioon: osaline hindamine ja detailsem tagasiside
+# ==========================================================
 
-# Algseadistame JSON massiivi
-RESULTS_JSON="["
-TOTAL_SCORE=0
-MAX_SCORE=0
+DASHBOARD_URL="${DASHBOARD_URL:-http://192.168.124.64:5050}"
+TOKEN_FILE="${TOKEN_FILE:-/etc/hkhk-dashboard-client.env}"
+MACHINE="${1:-}"
+SCRIPT_VERSION="3.2-partial-eval"
 
-# Abifunktsioon JSON-i kirje lisamiseks
-add_result() {
-    local task_name="$1"
-    local expected="$2"
-    local actual="$3"
-    local score="$4"
-    local summary="$5"
-    
-    # Eemaldame reavahetused ja jutumärgid teksti seest JSON-i rikkumise vältimiseks
-    actual=$(echo "$actual" | tr -d '"' | tr '
-' ' ')
-    summary=$(echo "$summary" | tr -d '"' | tr '
-' ' ')
-    
-    if [ "$RESULTS_JSON" != "[" ]; then
-        RESULTS_JSON="$RESULTS_JSON,"
-    fi
-    
-    RESULTS_JSON="$RESULTS_JSON {
-        "nimi": "$task_name",
-        "noutud": "$expected",
-        "tegelik": "$actual",
-        "skoor": $score,
-        "kokkuvote": "$summary"
-    }"
-    
-    TOTAL_SCORE=$((TOTAL_SCORE + score))
-    MAX_SCORE=$((MAX_SCORE + 100))
-}
-
-echo "Kogume andmeid serverist: $HOST_NAME"
-
-# ==========================================
-# KONTROLLID (Näidised piltide põhjal)
-# ==========================================
-
-if [[ "$HOST_NAME" == *"debian1"* || "$HOST_NAME" == *"web"* ]]; then
-    # 1. Apache teenus
-    TASK="Apache2 teenus"
-    EXPECTED="active"
-    ACTUAL=$(systemctl is-active apache2)
-    if [ "$ACTUAL" == "active" ]; then
-        add_result "$TASK" "$EXPECTED" "$ACTUAL" 100 "Apache jookseb korrektselt."
-    elif systemctl status apache2 | grep -q "inactive"; then
-        add_result "$TASK" "$EXPECTED" "inactive (peatatud)" 50 "Apache on paigaldatud, kuid pole käivitatud."
-    else
-        add_result "$TASK" "$EXPECTED" "puudub/viga" 0 "Apache ei ole paigaldatud või on tõsises veas."
-    fi
-
-    # 2. WordPress DB_HOST (Osalise hinde näide)
-    TASK="WordPress DB_HOST (wordpress)"
-    EXPECTED="10.0.10.25 (või teise serveri IP)"
-    # Eeldame, et leiame wp-config.php faili
-    WP_CONFIG="/var/www/html/wordpress/wp-config.php"
-    if [ -f "$WP_CONFIG" ]; then
-        ACTUAL=$(grep "'DB_HOST'" "$WP_CONFIG" | cut -d "'" -f 4)
-        if [[ "$ACTUAL" == *"10.0."* ]]; then
-            add_result "$TASK" "$EXPECTED" "$ACTUAL" 100 "Andmebaasi host on õigesti suunatud teise serveri IP-le."
-        elif [ "$ACTUAL" == "localhost" ]; then
-            add_result "$TASK" "$EXPECTED" "$ACTUAL" 25 "Andmebaasi host on jäänud localhosti peale, kaugühendust ei teki."
-        else
-            add_result "$TASK" "$EXPECTED" "$ACTUAL" 50 "Host on määratud, kuid IP tundub vale."
-        fi
-    else
-        add_result "$TASK" "$EXPECTED" "Faili ei leitud" 0 "wp-config.php faili ei eksisteeri."
-    fi
-
-elif [[ "$HOST_NAME" == *"debian2"* || "$HOST_NAME" == *"db"* ]]; then
-    # 1. MariaDB teenus
-    TASK="MariaDB teenus"
-    EXPECTED="active"
-    ACTUAL=$(systemctl is-active mariadb)
-    if [ "$ACTUAL" == "active" ]; then
-        add_result "$TASK" "$EXPECTED" "$ACTUAL" 100 "MariaDB jookseb korrektselt."
-    else
-        add_result "$TASK" "$EXPECTED" "$ACTUAL" 0 "MariaDB ei tööta."
-    fi
-    
-    # 2. MariaDB bind-address
-    TASK="MariaDB bind-address"
-    EXPECTED="0.0.0.0 või spetsiifiline IP (kaugühendus lubatud)"
-    ACTUAL=$(grep -E "^bind-address" /etc/mysql/mariadb.conf.d/50-server.cnf | awk '{print $3}')
-    if [ "$ACTUAL" == "127.0.0.1" ]; then
-        add_result "$TASK" "$EXPECTED" "$ACTUAL" 0 "Bind-address on 127.0.0.1, kaugühendused on blokeeritud."
-    elif [ -z "$ACTUAL" ]; then
-        add_result "$TASK" "$EXPECTED" "Kommenteeritud/Puudub" 50 "Bind-address rida on puudu, võib töötada, aga pole korrektselt defineeritud."
-    else
-        add_result "$TASK" "$EXPECTED" "$ACTUAL" 100 "Bind-address võimaldab kaugühendusi."
-    fi
-else
-    echo "Tundmatu masin. Ei oska kontrolle käivitada."
+if [[ "$EUID" -ne 0 ]]; then
+    echo "VIGA: käivita skript sudo abil." >&2
     exit 1
 fi
 
-RESULTS_JSON="$RESULTS_JSON]"
-
-# Arvutame koondprotsendi
-if [ $MAX_SCORE -gt 0 ]; then
-    TOTAL_PERCENT=$(( (TOTAL_SCORE * 100) / MAX_SCORE ))
-else
-    TOTAL_PERCENT=0
+if [[ "$MACHINE" != "Debian1" && "$MACHINE" != "Debian2" ]]; then
+    echo "Kasutus: sudo $0 Debian1|Debian2" >&2
+    exit 1
 fi
 
-# Serveri-sisene lühike kokkuvõte
-SERVER_SUMMARY="Selles serveris saavutati $TOTAL_PERCENT%. Ülesannete täitmisel esines "
-if [ $TOTAL_PERCENT -eq 100 ]; then
-    SERVER_SUMMARY="Suurepärane töö! Kõik selle serveri seadistused on korrektsed (100%)."
-elif [ $TOTAL_PERCENT -ge 75 ]; then
-    SERVER_SUMMARY="Suurem osa ($TOTAL_PERCENT%) on õigesti tehtud, kuid mõned väikesed seadistused vajavad tähelepanu."
-elif [ $TOTAL_PERCENT -ge 50 ]; then
-    SERVER_SUMMARY="Pool tööst ($TOTAL_PERCENT%) on tehtud. Kontrolli üle teenuste seadistused ja IP-aadressid."
-else
-    SERVER_SUMMARY="Enamik nõudeid on täitmata ($TOTAL_PERCENT%). Palun vaata juhendit uuesti ja alusta baasseadistustest."
+for cmd in python3 curl; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "VIGA: vajalik käsk puudub: $cmd" >&2
+        exit 1
+    fi
+done
+
+if [[ ! -r "$TOKEN_FILE" ]]; then
+    echo "VIGA: tokenifaili ei saa lugeda: $TOKEN_FILE" >&2
+    exit 1
 fi
 
-# Loome lõpliku JSON payload'i
-JSON_PAYLOAD=$(cat <<EOF
-{
-  "opilane": "$USER_NAME",
-  "masin": "$HOST_NAME",
-  "koond_protsent": $TOTAL_PERCENT,
-  "serveri_kokkuvote": "$SERVER_SUMMARY",
-  "tulemused": $RESULTS_JSON
+source "$TOKEN_FILE"
+
+if [[ -z "${UPLOAD_TOKEN:-}" ]]; then
+    echo "VIGA: UPLOAD_TOKEN puudub tokenifailis." >&2
+    exit 1
+fi
+
+read -r -p "Õpilase ees- ja perekonnanimi: " STUDENT_NAME
+
+if [[ -z "${STUDENT_NAME//[[:space:]]/}" ]]; then
+    echo "VIGA: õpilase nimi on kohustuslik." >&2
+    exit 1
+fi
+
+TMP="$(mktemp /tmp/hkhk-report.XXXXXX.json)"
+RESPONSE="$(mktemp /tmp/hkhk-response.XXXXXX)"
+trap 'rm -f "$TMP" "$RESPONSE" /tmp/hkhk-named-check' EXIT
+
+export STUDENT_NAME MACHINE TMP SCRIPT_VERSION
+
+# ----------------------------------------------------------
+# Raporti algstruktuur
+# ----------------------------------------------------------
+python3 - <<'PY'
+import os, json, socket, subprocess, ipaddress
+
+ips = []
+try:
+    output = subprocess.check_output(["hostname", "-I"], text=True, stderr=subprocess.DEVNULL)
+    for value in output.split():
+        try:
+            ip = ipaddress.ip_address(value)
+            if ip.version == 4 and not ip.is_loopback:
+                ips.append(str(ip))
+        except ValueError:
+            pass
+except (subprocess.SubprocessError, OSError):
+    pass
+
+report = {
+    "student_name": os.environ["STUDENT_NAME"].strip(),
+    "machine": os.environ["MACHINE"],
+    "hostname": socket.gethostname(),
+    "ip_address": ips[0] if ips else "",
+    "script_version": os.environ["SCRIPT_VERSION"],
+    "checks": []
 }
-EOF
-)
 
-# Salvestame JSON-i korraks faili (debugimiseks)
-echo "$JSON_PAYLOAD" > result.json
+with open(os.environ["TMP"], "w", encoding="utf-8") as f:
+    json.dump(report, f, ensure_ascii=False)
+PY
 
-# Saadame Flask serverisse
-echo "Saadan andmed serverisse $SERVER_URL..."
-curl -X POST -H "Content-Type: application/json" -d @result.json "$SERVER_URL"
+# ----------------------------------------------------------
+# Kontrolli lisamine raportisse
+# ----------------------------------------------------------
+add_check() {
+    python3 - "$TMP" "$1" "$2" "$3" "$4" "$5" "${6:-}" <<'PY'
+import json, sys
 
-echo "Valmis!"
+path, check_id, title, status, expected, actual, details = sys.argv[1:]
+
+with open(path, "r", encoding="utf-8") as f:
+    report = json.load(f)
+
+report["checks"].append({
+    "id": check_id,
+    "title": title,
+    "status": status.upper(),
+    "expected": expected,
+    "actual": actual,
+    "details": details
+})
+
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(report, f, ensure_ascii=False)
+PY
+}
+
+service_check() {
+    local svc="$1"
+    local id="$2"
+    local actual
+    actual="$(systemctl is-active "$svc" 2>/dev/null || true)"
+
+    if [[ "$actual" == "active" ]]; then
+        add_check "$id" "$svc teenus" "PASS" "active" "$actual" "Teenus töötab laitmatult (100%)."
+    elif systemctl status "$svc" >/dev/null 2>&1; then
+        add_check "$id" "$svc teenus" "PARTIAL 50%" "active" "${actual:-inactive}" "Teenus on paigaldatud, aga pole hetkel aktiivne. Vajab käivitamist (50%)."
+    else
+        add_check "$id" "$svc teenus" "FAIL" "active" "${actual:-puudub}" "Teenus puudub või on katki (0%)."
+    fi
+}
+
+get_constant() {
+    python3 - "$1" "$2" <<'PY'
+import re, sys
+path, key = sys.argv[1], sys.argv[2]
+try:
+    with open(path, encoding="utf-8", errors="replace") as f:
+        content = f.read()
+except OSError:
+    print("")
+    raise SystemExit(0)
+pattern = (r"""define\s*\(\s*(['"])""" + re.escape(key) + r"""\1\s*,\s*(['"])(.*?)\2\s*\)""")
+match = re.search(pattern, content, re.S)
+print(match.group(3).strip() if match else "")
+PY
+}
+
+# ==========================================================
+# DEBIAN1 – Apache2, PHP ja WordPress
+# ==========================================================
+if [[ "$MACHINE" == "Debian1" ]]; then
+    service_check apache2 apache2
+
+    if command -v apache2ctl >/dev/null 2>&1; then
+        apache_output="$(apache2ctl configtest 2>&1 || true)"
+        if grep -q "Syntax OK" <<< "$apache_output"; then
+            add_check virtualhost "Apache konfiguratsioon" "PASS" "Syntax OK" "$apache_output" "Konfiguratsioon on korrektne (100%)."
+        else
+            add_check virtualhost "Apache konfiguratsioon" "FAIL" "Syntax OK" "$apache_output" "Failis on süntaksiviga (0%)."
+        fi
+    else
+        add_check virtualhost "Apache konfiguratsioon" "FAIL" "apache2ctl käsk" "puudub" "Apache pole korrektselt paigaldatud (0%)."
+    fi
+
+    if command -v php >/dev/null 2>&1; then
+        add_check php "PHP CLI olemasolu" "PASS" "php käsk töötab" "$(php -v 2>/dev/null | head -n 1)" "PHP on olemas (100%)."
+    else
+        add_check php "PHP CLI olemasolu" "FAIL" "php käsk töötab" "puudub" "PHP pole paigaldatud (0%)."
+    fi
+
+    mapfile -t configs < <(
+        {
+            grep -RhsE '^[[:space:]]*DocumentRoot[[:space:]]+' /etc/apache2/sites-enabled /etc/apache2/sites-available 2>/dev/null | awk '{print $2}'
+            printf '%s\n' /var/www/* /var/www/html
+        } | while IFS= read -r directory; do
+            [[ -d "$directory" ]] || continue
+            find "$directory" -maxdepth 6 -type f -name wp-config.php -print 2>/dev/null
+        done | sort -u
+    )
+
+    if ((${#configs[@]})); then
+        add_check wordpress-files "WordPressi failid" "PASS" "wp-config.php leitud" "${configs[*]}" "WordPress paigaldatud ja konf-fail eksisteerib (100%)."
+
+        for cfg in "${configs[@]}"; do
+            domain="$(basename "$(dirname "$cfg")")"
+            host="$(get_constant "$cfg" DB_HOST)"
+            
+            # DB_HOST osaline hindamine
+            if [[ -n "$host" ]]; then
+                hp="${host%%:*}"; hp="${hp#[}"; hp="${hp%]}"
+                if [[ "$hp" == "localhost" || "$hp" == "127.0.0.1" ]]; then
+                    add_check "wp-db-host-$domain" "DB_HOST ($domain)" "PARTIAL 25%" "Kaugserveri IP (nt 10.0.10.x)" "$host" "Andmebaasi asukoht on jäänud 'localhost' peale. Kaugühendust ei teki. (25%)."
+                else
+                    add_check "wp-db-host-$domain" "DB_HOST ($domain)" "PASS" "Kaugserveri IP" "$host" "Oled seadistanud kaugserveri aadressi (100%)."
+                fi
+            else
+                add_check "wp-db-host-$domain" "DB_HOST ($domain)" "FAIL" "Määratud IP" "puudub" "DB_HOST rida on puudu või tühi (0%)."
+            fi
+        done
+    else
+        add_check wordpress-files "WordPressi failid" "FAIL" "wp-config.php leitav" "ei leitud" "DocumentRoot kaustas pole wp-config.php faili. WordPress võib olla paigaldamata (0%)."
+    fi
+
+# ==========================================================
+# DEBIAN2 – MariaDB ja BIND9
+# ==========================================================
+else
+    service_check mariadb mariadb
+    service_check bind9 bind9
+
+    DBCLI="$(command -v mariadb || command -v mysql || true)"
+
+    if [[ -n "$DBCLI" ]]; then
+        bind_address="$("$DBCLI" -N -B -e "SHOW VARIABLES LIKE 'bind_address';" 2>/dev/null | awk '{print $2}' || true)"
+        
+        # Bind-address osaline hindamine
+        case "$bind_address" in
+            127.0.0.1|localhost)
+                add_check db-bind-address "MariaDB bind-address" "PARTIAL 25%" "0.0.0.0 või spetsiifiline IP" "$bind_address" "Bind-address blokeerib kaugühendused (on 127.0.0.1). Luba välised ühendused! (25%)."
+                ;;
+            "")
+                add_check db-bind-address "MariaDB bind-address" "PARTIAL 75%" "Nähtav bind_address muutuja" "Tühi/Kommenteeritud" "Rida on failis puudu või kommenteeritud. Kaugühendus võib toimida, kuid pole korrektselt konfigureeritud (75%)."
+                ;;
+            *)
+                add_check db-bind-address "MariaDB bind-address" "PASS" "Kaugühendusi lubav IP" "$bind_address" "Kaugühendused on turvaliselt lubatud (100%)."
+                ;;
+        esac
+    else
+        add_check database "MariaDB klient" "FAIL" "mariadb olemas" "puudub" "Andmebaasimootor puudub (0%)."
+    fi
+fi
+
+# ----------------------------------------------------------
+# Saada raport dashboardile
+# ----------------------------------------------------------
+CHECK_COUNT="$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1], encoding="utf-8"))["checks"]))' "$TMP")"
+
+echo
+echo "Õpilane:  $STUDENT_NAME"
+echo "Masin:    $MACHINE"
+echo "Host:     $(hostname)"
+echo "Kontrolle: $CHECK_COUNT"
+echo "Dashboard: ${DASHBOARD_URL%/}/api/report"
+echo
+
+HTTP_CODE="$(curl -sS -o "$RESPONSE" -w '%{http_code}' --connect-timeout 5 --max-time 30 -H "X-Upload-Token: $UPLOAD_TOKEN" -H 'Content-Type: application/json' --data-binary "@$TMP" "${DASHBOARD_URL%/}/api/report" || true)"
+
+if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
+    echo "Õnnestus: raport saadeti dashboardile (HTTP $HTTP_CODE)."
+else
+    echo "VIGA: raporti saatmine ebaõnnestus (HTTP ${HTTP_CODE:-puudub})." >&2
+    if [[ -s "$RESPONSE" ]]; then cat "$RESPONSE" >&2; echo >&2; fi
+    exit 1
+fi
