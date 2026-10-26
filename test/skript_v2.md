@@ -216,3 +216,35 @@ fi
 
 
 ```
+Kui bash -n ei väljasta midagi, on Bash-süntaks korras.
+
+Kontrolli ka Python-plokkide süntaksit, käivitades skripti testkeskkonnas ei ole vaja midagi muuta — allpool olev käsk kontrollib skriptist eraldatud Python-plokke:
+
+
+```bash
+sudo python3 - <<'PY'
+import re
+import subprocess
+
+path = "/home/kasutaja/kontroll.sh"
+text = open(path, encoding="utf-8").read()
+
+blocks = re.findall(r"<<'PY'\n(.*?)\nPY", text, re.S)
+
+for number, block in enumerate(blocks, 1):
+    result = subprocess.run(
+        ["python3", "-c", "import ast,sys; ast.parse(sys.stdin.read())"],
+        input=block,
+        text=True,
+        capture_output=True
+    )
+    if result.returncode:
+        print(f"Python-plokk {number}: VIGA")
+        print(result.stderr)
+        raise SystemExit(1)
+
+print(f"Korras: kõik {len(blocks)} Python-plokki on süntaktiliselt õiged.")
+PY
+
+
+```
