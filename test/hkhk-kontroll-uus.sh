@@ -3,19 +3,13 @@ set -Eeuo pipefail
 
 # ==========================================================
 # HKHK – Debian labori kontroll ja tulemuste üleslaadimine
-#
-# Kasutamine:
-#   sudo /home/kasutaja/kontroll.sh Debian1
-#   sudo /home/kasutaja/kontroll.sh Debian2
-#
-# Debian1: Apache2, PHP, WordPress ja andmebaasiühendus
-# Debian2: MariaDB, andmebaasid, kasutajad ja BIND9
+# LÕPLIK TÄISVERSIOON - Nõutud ja Tegelike väärtustega!
 # ==========================================================
 
 DASHBOARD_URL="${DASHBOARD_URL:-http://192.168.124.64:5050}"
 TOKEN_FILE="${TOKEN_FILE:-/etc/hkhk-dashboard-client.env}"
 MACHINE="${1:-}"
-SCRIPT_VERSION="3.8-exact"
+SCRIPT_VERSION="3.9-final"
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "VIGA: käivita skript sudo abil." >&2
@@ -39,9 +33,6 @@ if [[ ! -r "$TOKEN_FILE" ]]; then
     exit 1
 fi
 
-# Tokenifail sisaldab rida kujul:
-# UPLOAD_TOKEN='...'
-# Ära lisa tokenit skripti endasse.
 # shellcheck disable=SC1090
 source "$TOKEN_FILE"
 
@@ -67,31 +58,20 @@ export STUDENT_NAME MACHINE TMP SCRIPT_VERSION
 # Raporti algstruktuur
 # ----------------------------------------------------------
 python3 - <<'PY'
-import os
-import json
-import socket
-import subprocess
-import ipaddress
+import os, json, socket, subprocess, ipaddress
 
 ips = []
-
 try:
     output = subprocess.check_output(
-        ["hostname", "-I"],
-        text=True,
-        stderr=subprocess.DEVNULL
+        ["hostname", "-I"], text=True, stderr=subprocess.DEVNULL
     )
-
     for value in output.split():
         try:
             ip = ipaddress.ip_address(value)
-
             if ip.version == 4 and not ip.is_loopback:
                 ips.append(str(ip))
-
         except ValueError:
             pass
-
 except (subprocess.SubprocessError, OSError):
     pass
 
@@ -113,14 +93,10 @@ PY
 # ----------------------------------------------------------
 add_check() {
     python3 - "$TMP" "$1" "$2" "$3" "$4" "$5" "${6:-}" <<'PY'
-import json
-import sys
-
+import json, sys
 path, check_id, title, status, expected, actual, details = sys.argv[1:]
-
 with open(path, "r", encoding="utf-8") as f:
     report = json.load(f)
-
 report["checks"].append({
     "id": check_id,
     "title": title,
@@ -129,21 +105,16 @@ report["checks"].append({
     "actual": actual,
     "details": details
 })
-
 with open(path, "w", encoding="utf-8") as f:
     json.dump(report, f, ensure_ascii=False)
 PY
 }
 
-# ----------------------------------------------------------
-# Teenuse kontroll
-# ----------------------------------------------------------
 service_check() {
     local svc="$1"
     local id="$2"
     local title="${3:-$svc teenus}"
     local actual
-
     actual="$(systemctl is-active "$svc" 2>/dev/null || true)"
 
     if [[ "$actual" == "active" ]]; then
@@ -153,29 +124,17 @@ service_check() {
     fi
 }
 
-# ----------------------------------------------------------
-# WordPressi wp-config.php konstantide lugemine
-# ----------------------------------------------------------
 get_constant() {
     python3 - "$1" "$2" <<'PY'
-import re
-import sys
-
+import re, sys
 path, key = sys.argv[1], sys.argv[2]
-
 try:
     with open(path, encoding="utf-8", errors="replace") as f:
         content = f.read()
 except OSError:
     print("")
     raise SystemExit(0)
-
-pattern = (
-    r"""define\s*\(\s*(['"])"""
-    + re.escape(key)
-    + r"""\1\s*,\s*(['"])(.*?)\2\s*\)"""
-)
-
+pattern = (r"""define\s*\(\s*(['"])""" + re.escape(key) + r"""\1\s*,\s*(['"])(.*?)\2\s*\)""")
 match = re.search(pattern, content, re.S)
 print(match.group(3).strip() if match else "")
 PY
@@ -400,7 +359,7 @@ else
                 done <<< "$dbs"
             else
                 add_check database \
-                    "MariaDB andmebaasid" FAIL \
+                    "MariaDB rakenduse andmebaasid" FAIL \
                     "vähemalt üks andmebaas" "ei leitud" ""
             fi
         else
@@ -433,7 +392,7 @@ else
                 "ei leitud või ligipääs puudub" ""
         fi
 
-        # MariaDB õigused (grants) - LISATUD PILDILT NÄHTU PÕHJAL
+        # MariaDB õigused (grants)
         db_privs="$("$DBCLI" -N -B -e "
             SELECT CONCAT(User, ' õigused ', Db, '.* andmebaasile') 
             FROM mysql.db 
@@ -461,7 +420,7 @@ else
             127.0.0.1|localhost)
                 add_check db-bind-address \
                     "MariaDB bind-address" FAIL \
-                    "0.0.0.0 või 10.0.10.x" "$bind_address" ""
+                    "0.0.0.0 või 10.0.10.25" "$bind_address" ""
                 ;;
             "")
                 add_check db-bind-address \
@@ -471,7 +430,7 @@ else
             *)
                 add_check db-bind-address \
                     "MariaDB bind-address" PASS \
-                    "0.0.0.0 või 10.0.10.x" "$bind_address" ""
+                    "0.0.0.0 või 10.0.10.25" "$bind_address" ""
                 ;;
         esac
     else
