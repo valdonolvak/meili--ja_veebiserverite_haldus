@@ -2,77 +2,102 @@
 set -Eeuo pipefail
 
 # ==========================================================
-# HKHK – Debian labori kontroll ja tulemuste üleslaadimine
-# LÕPLIK TÄISVERSIOON - Nõutud ja Tegelike väärtustega!
+# HKHK – Debian labori kontroll
+#
+# Debian1: Apache2, PHP, WordPress, wp-config.php, DB-ühendus
+# Debian2: MariaDB, kolmasdomeen_db, wpuser, BIND9
+#
+# Kasutamine:
+#   sudo ./kontroll.sh Debian1
+#   sudo ./kontroll.sh Debian2
+#
+# Raporti saatmine dashboardi:
+#   DASHBOARD_URL
+#   TOKEN_FILE
 # ==========================================================
 
 DASHBOARD_URL="${DASHBOARD_URL:-http://192.168.124.64:5050}"
 TOKEN_FILE="${TOKEN_FILE:-/etc/hkhk-dashboard-client.env}"
 MACHINE="${1:-}"
-SCRIPT_VERSION="3.9-final"
 
-if [[ "$EUID" -ne 0 ]]; then
-    echo "VIGA: käivita skript sudo abil." >&2
+DB_NAME_EXPECTED="kolmasdomeen_db"
+DB_USER_EXPECTED="wpuser"
+
+[[ $EUID -eq 0 ]] || {
+    echo "VIGA: käivita skript sudo abil."
     exit 1
-fi
+}
 
-if [[ "$MACHINE" != "Debian1" && "$MACHINE" != "Debian2" ]]; then
-    echo "Kasutus: sudo $0 Debian1|Debian2" >&2
+[[ "$MACHINE" == "Debian1" || "$MACHINE" == "Debian2" ]] || {
+    echo "Kasutamine: sudo $0 Debian1|Debian2"
     exit 1
-fi
+}
 
-for cmd in python3 curl; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "VIGA: vajalik käsk puudub: $cmd" >&2
-        exit 1
-    fi
-done
-
-if [[ ! -r "$TOKEN_FILE" ]]; then
-    echo "VIGA: tokenifaili ei saa lugeda: $TOKEN_FILE" >&2
+command -v python3 >/dev/null || {
+    echo "VIGA: python3 puudub."
     exit 1
-fi
+}
+
+command -v curl >/dev/null || {
+    echo "VIGA: curl puudub."
+    exit 1
+}
+
+[[ -r "$TOKEN_FILE" ]] || {
+    echo "VIGA: tokenifaili ei saa lugeda: $TOKEN_FILE"
+    exit 1
+}
 
 # shellcheck disable=SC1090
 source "$TOKEN_FILE"
 
-if [[ -z "${UPLOAD_TOKEN:-}" ]]; then
-    echo "VIGA: UPLOAD_TOKEN puudub tokenifailis." >&2
+[[ -n "${UPLOAD_TOKEN:-}" ]] || {
+    echo "VIGA: UPLOAD_TOKEN puudub."
     exit 1
-fi
+}
 
 read -r -p "Õpilase ees- ja perekonnanimi: " STUDENT_NAME
 
-if [[ -z "${STUDENT_NAME//[[:space:]]/}" ]]; then
-    echo "VIGA: õpilase nimi on kohustuslik." >&2
+[[ -n "${STUDENT_NAME// /}" ]] || {
+    echo "VIGA: nimi on kohustuslik."
     exit 1
-fi
+}
 
-TMP="$(mktemp /tmp/hkhk-report.XXXXXX.json)"
-RESPONSE="$(mktemp /tmp/hkhk-response.XXXXXX)"
-trap 'rm -f "$TMP" "$RESPONSE" /tmp/hkhk-named-check' EXIT
+TMP="$(mktemp)"
+RESPONSE="$(mktemp)"
+trap 'rm -f "$TMP" "$RESPONSE"' EXIT
 
-export STUDENT_NAME MACHINE TMP SCRIPT_VERSION
+export STUDENT_NAME MACHINE TMP
 
 # ----------------------------------------------------------
-# Raporti algstruktuur
+# Üldandmed
 # ----------------------------------------------------------
+
 python3 - <<'PY'
-import os, json, socket, subprocess, ipaddress
+import os
+import json
+import socket
+import subprocess
+import ipaddress
 
 ips = []
+
 try:
     output = subprocess.check_output(
-        ["hostname", "-I"], text=True, stderr=subprocess.DEVNULL
+        ["hostname", "-I"],
+        text=True,
+        stderr=subprocess.DEVNULL
     )
+
     for value in output.split():
         try:
             ip = ipaddress.ip_address(value)
             if ip.version == 4 and not ip.is_loopback:
                 ips.append(str(ip))
         except ValueError:
-            pass
-except (subprocess.SubprocessError, OSError):
+            continue
+
+except (OSError, subprocess.SubprocessError):
     pass
 
 report = {
@@ -80,7 +105,7 @@ report = {
     "machine": os.environ["MACHINE"],
     "hostname": socket.gethostname(),
     "ip_address": ips[0] if ips else "",
-    "script_version": os.environ["SCRIPT_VERSION"],
+    "script_version": "4.0",
     "checks": []
 }
 
@@ -90,13 +115,21 @@ PY
 
 # ----------------------------------------------------------
 # Kontrolli lisamine raportisse
+#
+# argumendid:
+# id, pealkiri, staatus, oodatud, tegelik, selgitus
 # ----------------------------------------------------------
+
 add_check() {
     python3 - "$TMP" "$1" "$2" "$3" "$4" "$5" "${6:-}" <<'PY'
-import json, sys
+import json
+import sys
+
 path, check_id, title, status, expected, actual, details = sys.argv[1:]
-with open(path, "r", encoding="utf-8") as f:
+
+with open(path, encoding="utf-8") as f:
     report = json.load(f)
+
 report["checks"].append({
     "id": check_id,
     "title": title,
@@ -105,396 +138,459 @@ report["checks"].append({
     "actual": actual,
     "details": details
 })
+
 with open(path, "w", encoding="utf-8") as f:
     json.dump(report, f, ensure_ascii=False)
 PY
 }
 
+# ----------------------------------------------------------
+# Abifunktsioonid
+# ----------------------------------------------------------
+
 service_check() {
-    local svc="$1"
+    local service="$1"
     local id="$2"
-    local title="${3:-$svc teenus}"
     local actual
-    actual="$(systemctl is-active "$svc" 2>/dev/null || true)"
+
+    actual="$(systemctl is-active "$service" 2>/dev/null || true)"
 
     if [[ "$actual" == "active" ]]; then
-        add_check "$id" "$title" PASS "active" "$actual" ""
+        add_check "$id" "$service teenus" PASS \
+            "Teenus peab töötama (active)" "$actual" \
+            "Teenuse olek kontrolliti käsuga systemctl is-active."
     else
-        add_check "$id" "$title" FAIL "active" "${actual:-failed}" "Teenus ei tööta. Kontrolli käsuga 'systemctl status $svc'."
+        add_check "$id" "$service teenus" FAIL \
+            "Teenus peab töötama (active)" "${actual:-teadmata}" \
+            "Kontrolli teenuse olekut käsuga systemctl status $service."
+    fi
+}
+
+check_command() {
+    local command_name="$1"
+    local id="$2"
+    local title="$3"
+
+    if command -v "$command_name" >/dev/null 2>&1; then
+        add_check "$id" "$title" PASS \
+            "Käsk $command_name peab olema paigaldatud" \
+            "$(command -v "$command_name")" \
+            "Vajalik käsk on süsteemis olemas."
+    else
+        add_check "$id" "$title" FAIL \
+            "Käsk $command_name peab olema paigaldatud" \
+            "Käsku ei leitud" \
+            "Paigalda puuduv tarkvarapakett."
     fi
 }
 
 get_constant() {
     python3 - "$1" "$2" <<'PY'
-import re, sys
-path, key = sys.argv[1], sys.argv[2]
+import re
+import sys
+
+path, key = sys.argv[1:3]
+
 try:
     with open(path, encoding="utf-8", errors="replace") as f:
         content = f.read()
 except OSError:
     print("")
-    raise SystemExit(0)
-pattern = (r"""define\s*\(\s*(['"])""" + re.escape(key) + r"""\1\s*,\s*(['"])(.*?)\2\s*\)""")
+    raise SystemExit
+
+pattern = (
+    r"""define\s*\(\s*(['"])"""
+    + re.escape(key)
+    + r"""\1\s*,\s*(['"])(.*?)\2\s*\)"""
+)
+
 match = re.search(pattern, content, re.S)
 print(match.group(3).strip() if match else "")
 PY
 }
 
-# ==========================================================
-# DEBIAN1 – Apache2, PHP ja WordPress
-# ==========================================================
+# ----------------------------------------------------------
+# Debian1 – Apache2 ja WordPress
+# ----------------------------------------------------------
+
 if [[ "$MACHINE" == "Debian1" ]]; then
 
-    service_check apache2 apache2 "Apache2 teenus"
+    service_check apache2 apache2
 
-    # Apache konfiguratsiooni süntaks
+    check_command apache2ctl apache-config-command \
+        "Apache kontrollkäsk"
+
     if command -v apache2ctl >/dev/null 2>&1; then
         apache_output="$(apache2ctl configtest 2>&1 || true)"
 
         if grep -q "Syntax OK" <<< "$apache_output"; then
-            add_check virtualhost \
-                "Apache VirtualHosti konfiguratsioon" \
-                PASS "Apache konfiguratsioon korras" "Konfiguratsioon korras" ""
+            add_check virtualhost apache-config PASS \
+                "Apache konfiguratsioon peab olema süntaktiliselt korrektne" \
+                "$apache_output" \
+                "Apache konfiguratsiooni süntaks on korrektne."
         else
-            add_check virtualhost \
-                "Apache VirtualHosti konfiguratsioon" \
-                FAIL "Apache konfiguratsioon korras" "$apache_output" ""
+            add_check virtualhost apache-config FAIL \
+                "Apache konfiguratsioon peab andma tulemuse Syntax OK" \
+                "$apache_output" \
+                "Kontrolli VirtualHosti ja Apache konfiguratsioonifaile."
+        fi
+    fi
+
+    check_command php php-cli "PHP CLI olemasolu"
+
+    if command -v php >/dev/null 2>&1; then
+        php_version="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
+
+        add_check php-version php-version PASS \
+            "PHP peab olema paigaldatud" \
+            "${php_version:-versioon teadmata}" \
+            "PHP versioon loeti käsurealt."
+
+        if php -m 2>/dev/null | grep -qi '^mysqli$'; then
+            add_check php-mysqli php-mysqli PASS \
+                "PHP mysqli laiendus peab olema olemas" \
+                "mysqli on laaditud" \
+                "WordPress vajab MariaDB/MySQL ühenduseks mysqli laiendust."
+        else
+            add_check php-mysqli php-mysqli FAIL \
+                "PHP mysqli laiendus peab olema olemas" \
+                "mysqli puudub" \
+                "Paigalda PHP mysqli laiendus ja taaskäivita Apache."
         fi
     else
-        add_check virtualhost \
-            "Apache VirtualHosti konfiguratsioon" \
-            WARN "Apache konfiguratsioon korras" "apache2ctl käsk puudub" ""
+        add_check php-mysqli php-mysqli FAIL \
+            "PHP ja mysqli peavad olema olemas" \
+            "PHP puudub" \
+            "Paigalda PHP ning vajalikud laiendused."
     fi
 
-    # PHP olemasolu
-    if command -v php >/dev/null 2>&1; then
-        add_check php "PHP paigaldus" PASS \
-            "PHP olemas" "$(php -r 'echo PHP_VERSION;' 2>/dev/null || echo "olemas")" ""
-    else
-        add_check php "PHP paigaldus" FAIL "PHP olemas" "puudub" ""
-    fi
-
-    # Leia WordPressi konfiguratsioonifailid.
-    mapfile -t configs < <(
-        {
-            grep -RhsE '^[[:space:]]*DocumentRoot[[:space:]]+' \
-                /etc/apache2/sites-enabled \
-                /etc/apache2/sites-available \
-                2>/dev/null | awk '{print $2}'
-
-            printf '%s\n' /var/www/* /var/www/html
-        } |
-        while IFS= read -r directory; do
-            [[ -d "$directory" ]] || continue
-
-            find "$directory" \
-                -maxdepth 6 \
-                -type f \
-                -name wp-config.php \
-                -print 2>/dev/null
-        done |
+    # Leia WordPressi konfiguratsioonifailid Apache DocumentRootidest
+    mapfile -t DOCROOTS < <(
+        grep -RhsE '^[[:space:]]*DocumentRoot[[:space:]]+' \
+            /etc/apache2/sites-enabled /etc/apache2/sites-available \
+            2>/dev/null |
+        awk '{print $2}' |
         sort -u
     )
 
-    if ((${#configs[@]})); then
-        configs_display="$(printf '%s\n' "${configs[@]}" | paste -sd ', ' -)"
-        add_check wordpress-files \
-            "WordPressi failid" PASS \
-            "wp-config.php WordPressi DocumentRootis" "$configs_display" ""
+    CONFIGS=()
 
-        for cfg in "${configs[@]}"; do
-            domain="$(basename "$(dirname "$cfg")")"
+    for root in "${DOCROOTS[@]}"; do
+        [[ -d "$root" ]] || continue
 
-            add_check "wp-config-$domain" \
-                "WordPressi konfiguratsioonifail" PASS \
-                "Fail loetav" "Fail loetav" ""
+        while IFS= read -r file; do
+            [[ -n "$file" ]] && CONFIGS+=("$file")
+        done < <(
+            find "$root" -maxdepth 5 -type f \
+                -name wp-config.php -print 2>/dev/null
+        )
+    done
 
-            name="$(get_constant "$cfg" DB_NAME)"
-            user="$(get_constant "$cfg" DB_USER)"
-            host="$(get_constant "$cfg" DB_HOST)"
-            pass="$(get_constant "$cfg" DB_PASSWORD)"
+    # Varukontroll levinud WordPressi asukohtades
+    for root in /var/www /var/www/html; do
+        [[ -d "$root" ]] || continue
 
-            # DB_NAME
-            if [[ -n "$name" ]]; then
-                add_check "wp-db-name-$domain" \
-                    "WordPress DB_NAME" PASS \
-                    "$name" "$name" ""
-            else
-                add_check "wp-db-name-$domain" \
-                    "WordPress DB_NAME" FAIL \
-                    "määratud" "puudub" ""
-            fi
+        while IFS= read -r file; do
+            [[ -n "$file" ]] && CONFIGS+=("$file")
+        done < <(
+            find "$root" -maxdepth 5 -type f \
+                -name wp-config.php -print 2>/dev/null
+        )
+    done
 
-            # DB_USER
-            if [[ -n "$user" ]]; then
-                add_check "wp-db-user-$domain" \
-                    "WordPress DB_USER" PASS \
-                    "$user" "$user" ""
-            else
-                add_check "wp-db-user-$domain" \
-                    "WordPress DB_USER" FAIL \
-                    "määratud" "puudub" ""
-            fi
+    mapfile -t CONFIGS < <(
+        printf '%s\n' "${CONFIGS[@]}" |
+        sed '/^$/d' |
+        sort -u
+    )
 
-            # DB_HOST
-            if [[ -n "$host" ]]; then
-                add_check "wp-db-host-$domain" \
-                    "WordPress DB_HOST" PASS \
-                    "$host" "$host" ""
-            else
-                add_check "wp-db-host-$domain" \
-                    "WordPress DB_HOST" FAIL \
-                    "määratud" "puudub" ""
-            fi
-
-            # Kontrolli, kas DB_HOST viitab kaugserverile.
-            hp="${host%%:*}"
-            hp="${hp#[}"
-            hp="${hp%]}"
-
-            if [[ -n "$hp" &&
-                  "$hp" != "localhost" &&
-                  "$hp" != "127.0.0.1" ]]; then
-                add_check "wp-db-remote-$domain" \
-                    "Kaugandmebaasi kasutamine" PASS \
-                    "Kaugserveri IP ($host)" "$host" ""
-            else
-                add_check "wp-db-remote-$domain" \
-                    "Kaugandmebaasi kasutamine" FAIL \
-                    "Kaugserveri IP" "${host:-puudub}" ""
-            fi
-
-            # Testi tegelikku MySQL/MariaDB ühendust.
-            if command -v php >/dev/null 2>&1 &&
-               php -m 2>/dev/null | grep -qi '^mysqli$' &&
-               [[ -n "$name" && -n "$user" &&
-                  -n "$host" && -n "$pass" ]]; then
-
-                if DBN="$name" DBU="$user" DBH="$host" DBP="$pass" \
-                    php -r '
-                        mysqli_report(MYSQLI_REPORT_OFF);
-
-                        $host = getenv("DBH");
-                        $port = 3306;
-
-                        if (preg_match("/^(.+):([0-9]+)$/", $host, $m)) {
-                            $host = trim($m[1], "[]");
-                            $port = (int)$m[2];
-                        } else {
-                            $host = trim($host, "[]");
-                        }
-
-                        $db = @new mysqli(
-                            $host,
-                            getenv("DBU"),
-                            getenv("DBP"),
-                            getenv("DBN"),
-                            $port
-                        );
-
-                        if ($db->connect_errno) {
-                            exit(1);
-                        }
-
-                        $db->close();
-                    ' >/dev/null 2>&1; then
-
-                    add_check "wp-db-connect-$domain" \
-                        "WordPressi ühendus MariaDB-ga" PASS \
-                        "Ühendus aadressile $host toimib" "Ühendus õnnestus" ""
-                else
-                    add_check "wp-db-connect-$domain" \
-                        "WordPressi ühendus MariaDB-ga" FAIL \
-                        "Ühendus aadressile $host toimib" "Ühendus ebaõnnestus" ""
-                fi
-            else
-                add_check "wp-db-connect-$domain" \
-                    "WordPressi ühendus MariaDB-ga" WARN \
-                    "Ühendus aadressile $host toimib" \
-                    "ei testitud" ""
-            fi
-        done
+    if ((${#CONFIGS[@]} == 0)); then
+        add_check wordpress-files wordpress-files FAIL \
+            "WordPressi DocumentRootis peab olema wp-config.php" \
+            "wp-config.php ei leitud" \
+            "Kontrolli Apache DocumentRooti ja WordPressi failide asukohta."
     else
-        add_check wordpress-files \
-            "WordPressi failid" FAIL \
-            "wp-config.php WordPressi DocumentRootis" "ei leitud" \
-            "Kontrolli Apache DocumentRooti ja WordPressi asukohta."
+        add_check wordpress-files wordpress-files PASS \
+            "Vähemalt üks WordPressi wp-config.php peab olema leitav" \
+            "$(printf '%s\n' "${CONFIGS[@]}")" \
+            "Leitud failid kontrollitakse eraldi."
     fi
 
-# ==========================================================
-# DEBIAN2 – MariaDB ja BIND9
-# ==========================================================
+    for cfg in "${CONFIGS[@]}"; do
+        domain="$(basename "$(dirname "$cfg")")"
+
+        name="$(get_constant "$cfg" DB_NAME)"
+        user="$(get_constant "$cfg" DB_USER)"
+        host="$(get_constant "$cfg" DB_HOST)"
+        pass="$(get_constant "$cfg" DB_PASSWORD)"
+
+        # DB_NAME
+        if [[ "$name" == "$DB_NAME_EXPECTED" ]]; then
+            add_check "wp-db-name-$domain" \
+                "WordPress DB_NAME ($domain)" PASS \
+                "DB_NAME peab olema $DB_NAME_EXPECTED" "$name" \
+                "wp-config.php andmebaasi nimi vastab ülesande nõudele."
+        else
+            add_check "wp-db-name-$domain" \
+                "WordPress DB_NAME ($domain)" FAIL \
+                "DB_NAME peab olema $DB_NAME_EXPECTED" \
+                "${name:-väärtus puudub}" \
+                "Muuda wp-config.php faili DB_NAME väärtust."
+        fi
+
+        # DB_USER
+        if [[ "$user" == "$DB_USER_EXPECTED" ]]; then
+            add_check "wp-db-user-$domain" \
+                "WordPress DB_USER ($domain)" PASS \
+                "DB_USER peab olema $DB_USER_EXPECTED" "$user" \
+                "wp-config.php kasutajanimi vastab ülesande nõudele."
+        else
+            add_check "wp-db-user-$domain" \
+                "WordPress DB_USER ($domain)" FAIL \
+                "DB_USER peab olema $DB_USER_EXPECTED" \
+                "${user:-väärtus puudub}" \
+                "Muuda wp-config.php faili DB_USER väärtust."
+        fi
+
+        # DB_HOST – peab olema kaugserver, mitte localhost
+        host_clean="${host%%:*}"
+        host_clean="${host_clean#[}"
+        host_clean="${host_clean%]}"
+
+        if [[ -n "$host_clean" &&
+              "$host_clean" != "localhost" &&
+              "$host_clean" != "127.0.0.1" ]]; then
+            add_check "wp-db-host-$domain" \
+                "WordPress DB_HOST ($domain)" PASS \
+                "DB_HOST peab viitama Debian2 MariaDB serverile, mitte localhost'ile" \
+                "$host" \
+                "DB_HOST on seadistatud kaugühenduseks. Kontrolli, et aadress on Debian2 IP."
+        else
+            add_check "wp-db-host-$domain" \
+                "WordPress DB_HOST ($domain)" FAIL \
+                "DB_HOST peab viitama Debian2 MariaDB serverile, mitte localhost'ile" \
+                "${host:-väärtus puudub}" \
+                "WordPress ja MariaDB asuvad eri serverites. Kasuta Debian2 IP-aadressi."
+        fi
+
+        # Tegelik andmebaasiühendus
+        if [[ -n "$name" && -n "$user" && -n "$host" && -n "$pass" ]] &&
+           command -v php >/dev/null 2>&1 &&
+           php -m 2>/dev/null | grep -qi '^mysqli$'; then
+
+            if DBN="$name" DBU="$user" DBH="$host" DBP="$pass" \
+                php -r '
+                    $host = getenv("DBH");
+                    $port = 3306;
+                    if (preg_match("/^(.+):([0-9]+)$/", $host, $m)) {
+                        $host = trim($m[1], "[]");
+                        $port = (int)$m[2];
+                    }
+                    $db = @new mysqli(
+                        $host, getenv("DBU"), getenv("DBP"),
+                        getenv("DBN"), $port
+                    );
+                    if ($db->connect_errno) {
+                        fwrite(STDERR, $db->connect_error);
+                        exit(1);
+                    }
+                    $db->close();
+                ' 2>"$RESPONSE"; then
+
+                add_check "wp-db-connect-$domain" \
+                    "WordPressi DB-ühendus ($domain)" PASS \
+                    "Ühendus peab õnnestuma andmebaasiga $DB_NAME_EXPECTED kasutajana $DB_USER_EXPECTED" \
+                    "Ühendus õnnestus: DB_NAME=$name; DB_USER=$user; DB_HOST=$host" \
+                    "PHP mysqli sai ühenduse loodud."
+            else
+                add_check "wp-db-connect-$domain" \
+                    "WordPressi DB-ühendus ($domain)" FAIL \
+                    "Ühendus peab õnnestuma andmebaasiga $DB_NAME_EXPECTED kasutajana $DB_USER_EXPECTED" \
+                    "Ühendus ebaõnnestus: DB_NAME=$name; DB_USER=$user; DB_HOST=$host" \
+                    "$(cat "$RESPONSE" 2>/dev/null || echo 'Kontrolli DB_HOST-i, parooli, õigusi ja võrguühendust.')"
+            fi
+        else
+            add_check "wp-db-connect-$domain" \
+                "WordPressi DB-ühendus ($domain)" WARN \
+                "PHP mysqli ja kõik DB_* väärtused peavad olema määratud" \
+                "Ühendust ei testitud" \
+                "Vajalikud konfiguratsiooniväärtused või mysqli laiendus puuduvad."
+        fi
+
+    done
+
+    # Apache HTTP port
+    if command -v ss >/dev/null 2>&1; then
+        listen80="$(ss -lnt 2>/dev/null | awk '$4 ~ /:80$/ {print $4}')"
+
+        if [[ -n "$listen80" ]]; then
+            add_check apache-port80 apache-port80 PASS \
+                "Apache peab kuulama TCP porti 80" "$listen80" \
+                "TCP port 80 kuulab."
+        else
+            add_check apache-port80 apache-port80 FAIL \
+                "Apache peab kuulama TCP porti 80" \
+                "Port 80 ei kuula" \
+                "Kontrolli Apache teenust ja portide seadistust."
+        fi
+    fi
+
+# ----------------------------------------------------------
+# Debian2 – MariaDB ja BIND9
+# ----------------------------------------------------------
+
 else
 
-    service_check mariadb mariadb "MariaDB teenus"
-    service_check bind9 bind9 "BIND9 teenus"
+    service_check mariadb mariadb
+    service_check bind9 bind9
 
     DBCLI="$(command -v mariadb || command -v mysql || true)"
 
-    if [[ -n "$DBCLI" ]]; then
-
-        # Andmebaaside loetelu
+    if [[ -z "$DBCLI" ]]; then
+        add_check database-client database-client FAIL \
+            "MariaDB/MySQL klient peab olema paigaldatud" \
+            "Klienti ei leitud" \
+            "Paigalda MariaDB klient."
+    else
+        # Andmebaasi olemasolu
         if dbs="$("$DBCLI" -N -B -e 'SHOW DATABASES;' 2>/dev/null)"; then
-
-            dbs="$(printf '%s\n' "$dbs" |
-                awk '$0!="information_schema" &&
-                     $0!="performance_schema" &&
-                     $0!="mysql" &&
-                     $0!="sys" &&
-                     NF')"
-
-            if [[ -n "$dbs" ]]; then
-                dbs_display="$(printf '%s\n' "$dbs" | paste -sd ', ' -)"
-
-                add_check database \
-                    "MariaDB andmebaasid" PASS \
-                    "andmebaas olemas" "$dbs_display" ""
-
-                while IFS= read -r dbn; do
-                    [[ -n "$dbn" ]] || continue
-
-                    add_check "database-$dbn" \
-                        "MariaDB andmebaas" PASS \
-                        "$dbn olemas" "$dbn" ""
-                done <<< "$dbs"
+            if grep -Fxq "$DB_NAME_EXPECTED" <<< "$dbs"; then
+                add_check database database PASS \
+                    "Andmebaas $DB_NAME_EXPECTED peab olemas olema" \
+                    "$DB_NAME_EXPECTED on olemas" \
+                    "MariaDB andmebaas leiti."
             else
-                add_check database \
-                    "MariaDB rakenduse andmebaasid" FAIL \
-                    "vähemalt üks andmebaas" "ei leitud" ""
+                add_check database database FAIL \
+                    "Andmebaas $DB_NAME_EXPECTED peab olemas olema" \
+                    "$(printf '%s\n' "$dbs" | paste -sd ', ' -)" \
+                    "Loo nõutud andmebaas või kontrolli selle nime."
             fi
         else
-            add_check database \
-                "MariaDB andmebaaside loetelu" FAIL \
-                "päring õnnestub" "päring ebaõnnestus" \
-                "Kontrolli kohaliku MariaDB autentimise seadistust."
+            add_check database database FAIL \
+                "MariaDB päring SHOW DATABASES peab õnnestuma" \
+                "Päring ebaõnnestus" \
+                "Kontrolli MariaDB kohalikku administraatori autentimist."
         fi
 
-        # Rakenduse kasutajad
-        users="$("$DBCLI" -N -B -e "
-            SELECT CONCAT(User,'@',Host)
-            FROM mysql.user
-            WHERE User NOT IN (
-                'mariadb.sys','mysql','root','debian-sys-maint'
-            )
-            ORDER BY User,Host;
-        " 2>/dev/null || true)"
+        # Kasutaja peab olema wpuser@10.0.X.20
+        users="$("$DBCLI" -N -B -e \
+            "SELECT CONCAT(User,'@',Host) FROM mysql.user WHERE User='$DB_USER_EXPECTED' ORDER BY Host;" \
+            2>/dev/null || true)"
 
         if [[ -n "$users" ]]; then
-            users_display="$(printf '%s\n' "$users" | paste -sd ', ' -)"
-
-            add_check db-user \
-                "MariaDB kasutaja" PASS \
-                "kasutaja olemas" "$users_display" ""
+            add_check db-user db-user PASS \
+                "MariaDB kasutaja peab olema $DB_USER_EXPECTED ja lubama ühenduse Debian1 IP-lt" \
+                "$users" \
+                "Kontrolli, et kasutaja Host väärtus piiraks ühenduse Debian1 aadressiga."
         else
-            add_check db-user \
-                "MariaDB kasutaja" WARN \
-                "kasutajad loetavad" \
-                "ei leitud või ligipääs puudub" ""
+            add_check db-user db-user FAIL \
+                "MariaDB kasutaja $DB_USER_EXPECTED peab olemas olema" \
+                "Kasutajat ei leitud" \
+                "Loo nõutud kasutaja MariaDB-s."
         fi
 
-        # MariaDB õigused (grants)
-        db_privs="$("$DBCLI" -N -B -e "
-            SELECT CONCAT(User, ' õigused ', Db, '.* andmebaasile') 
-            FROM mysql.db 
-            WHERE User NOT IN ('mariadb.sys','mysql','root','debian-sys-maint');
-        " 2>/dev/null || true)"
+        # Õigused nõutud andmebaasile
+        grants="$("$DBCLI" -N -B -e \
+            "SELECT Db, User, Host FROM mysql.db WHERE Db='$DB_NAME_EXPECTED' AND User='$DB_USER_EXPECTED';" \
+            2>/dev/null || true)"
 
-        if [[ -n "$db_privs" ]]; then
-            while IFS= read -r priv; do
-                [[ -z "$priv" ]] || add_check "db-grants-$priv" \
-                    "MariaDB õigused" PASS \
-                    "$priv" "Leiti ${priv/*õigused /} õiguste kirje" ""
-            done <<< "$db_privs"
+        if [[ -n "$grants" ]]; then
+            add_check db-grants db-grants PASS \
+                "Kasutajal $DB_USER_EXPECTED peab olema õigus andmebaasile $DB_NAME_EXPECTED" \
+                "$grants" \
+                "Andmebaasipõhine õiguserida leiti. Vajadusel kontrolli täpseid õigusi käsuga SHOW GRANTS."
         else
-            add_check db-grants \
-                "MariaDB õigused" FAIL \
-                "Kasutajale andmebaasi õigused määratud" "Ei leitud" ""
+            add_check db-grants db-grants FAIL \
+                "Kasutajal $DB_USER_EXPECTED peab olema õigus andmebaasile $DB_NAME_EXPECTED" \
+                "Sobivat õiguserida ei leitud" \
+                "Anna kasutajale nõutud andmebaasiõigused ja kontrolli SHOW GRANTS väljundit."
         fi
 
-        # MariaDB bind-address
-        bind_address="$("$DBCLI" -N -B -e \
+        # bind-address
+        bind="$("$DBCLI" -N -B -e \
             "SHOW VARIABLES LIKE 'bind_address';" 2>/dev/null |
             awk '{print $2}' || true)"
 
-        case "$bind_address" in
-            127.0.0.1|localhost)
-                add_check db-bind-address \
-                    "MariaDB bind-address" FAIL \
-                    "0.0.0.0 või 10.0.10.25" "$bind_address" ""
-                ;;
-            "")
-                add_check db-bind-address \
-                    "MariaDB bind-address" WARN \
-                    "väärtus loetav" "ei saanud lugeda" ""
-                ;;
-            *)
-                add_check db-bind-address \
-                    "MariaDB bind-address" PASS \
-                    "0.0.0.0 või 10.0.10.25" "$bind_address" ""
-                ;;
-        esac
-    else
-        add_check database "MariaDB klient" FAIL \
-            "mariadb/mysql olemas" "puudub" "Klienttarkvara pole serveris."
+        if [[ -n "$bind" && "$bind" != "127.0.0.1" && "$bind" != "localhost" ]]; then
+            add_check db-bind-address db-bind-address PASS \
+                "MariaDB peab lubama kaugühendusi, mitte kuulama ainult localhost'il" \
+                "$bind" \
+                "bind_address ei ole ainult loopback-aadress."
+        else
+            add_check db-bind-address db-bind-address FAIL \
+                "MariaDB peab lubama kaugühendusi" \
+                "${bind:-väärtus teadmata}" \
+                "Muuda MariaDB bind-address sobivaks ning taaskäivita teenus."
+        fi
     fi
 
-    # TCP-port 3306
+    # MariaDB TCP port
     if command -v ss >/dev/null 2>&1; then
-        listen="$(ss -lnt 2>/dev/null |
-            awk '$4 ~ /:3306$/ {print $4}' |
-            paste -sd ', ' -)"
+        listen3306="$(ss -lnt 2>/dev/null | awk '$4 ~ /:3306$/ {print $4}')"
 
-        if [[ -n "$listen" ]]; then
-            add_check db-listen "MariaDB TCP kuulamine" PASS \
-                "3306 port kuulab kaugühendusi" "$listen" ""
+        if [[ -n "$listen3306" ]]; then
+            add_check db-listen db-listen PASS \
+                "MariaDB peab kuulama TCP porti 3306" "$listen3306" \
+                "TCP port 3306 kuulab."
         else
-            add_check db-listen "MariaDB TCP kuulamine" FAIL \
-                "3306 port kuulab kaugühendusi" "port ei kuula" ""
+            add_check db-listen db-listen FAIL \
+                "MariaDB peab kuulama TCP porti 3306" \
+                "Port 3306 ei kuula" \
+                "Kontrolli MariaDB teenust, bind-addressi ja porti."
         fi
-    else
-        add_check db-listen "MariaDB TCP kuulamine" WARN \
-            "3306 port kuulab kaugühendusi" "käsk puudub" ""
     fi
 
     # BIND9 konfiguratsioon ja tsoonid
     if command -v named-checkconf >/dev/null 2>&1; then
-        if named-checkconf -z >/tmp/hkhk-named-check 2>&1; then
-            add_check bind-config \
-                "BIND9 konfiguratsioon" PASS \
-                "named-checkconf edukas" "Konfiguratsioon korras" ""
+        if named-checkconf -z >/dev/null 2>"$RESPONSE"; then
+            add_check bind-config bind-config PASS \
+                "BIND9 konfiguratsioon ja tsoonid peavad läbima named-checkconf -z kontrolli" \
+                "Kontroll õnnestus" \
+                "BIND9 konfiguratsiooni ja laaditavate tsoonide kontroll õnnestus."
         else
-            add_check bind-config \
-                "BIND9 konfiguratsioon" FAIL \
-                "named-checkconf edukas" \
-                "$(cat /tmp/hkhk-named-check)" ""
+            add_check bind-config bind-config FAIL \
+                "BIND9 konfiguratsioon ja tsoonid peavad olema korrektsed" \
+                "$(cat "$RESPONSE")" \
+                "Kontrolli named.conf faile, tsoonifailide nimesid ja süntaksit."
         fi
-
-        rm -f /tmp/hkhk-named-check
     else
-        add_check bind-config \
-            "BIND9 konfiguratsioon" WARN \
-            "named-checkconf edukas" "Käsk puudub" ""
+        add_check bind-config bind-config FAIL \
+            "Käsk named-checkconf peab olema olemas" \
+            "Käsku ei leitud" \
+            "Paigalda BIND9."
     fi
+
+    # Kontrolli, kas tsoonide seadistuses on perekonnanimepõhine domeen.
+    # Skript ei eelda fikseeritud domeeni nagu minudomeen.local.
+    zones="$(
+        grep -RhsE '^[[:space:]]*zone[[:space:]]+"' \
+            /etc/bind/named.conf /etc/bind/named.conf.local \
+            /etc/bind/named.conf.default-zones 2>/dev/null |
+        sed -nE 's/.*zone[[:space:]]+"([^"]+)".*/\1/p' |
+        sort -u
+    )"
+
+    if [[ -n "$zones" ]]; then
+        add_check bind-zones bind-zones PASS \
+            "BIND9-s peavad olema ülesandes kasutatava domeeni tsoonid" \
+            "$zones" \
+            "Leitud tsoonid. Kontrolli, et vajalik edasi- ja pöördotsingu tsoon oleksid olemas ning õigete kirjete sisuga."
+    else
+        add_check bind-zones bind-zones FAIL \
+            "BIND9-s peavad olema ülesande tsoonid" \
+            "Tsoone ei leitud" \
+            "Kontrolli /etc/bind/named.conf ja /etc/bind/named.conf.local faile."
+    fi
+
+    check_command dig dns-dig "DNS kontrollkäsk dig"
+
 fi
 
 # ----------------------------------------------------------
-# Saada raport dashboardile
+# Raporti saatmine dashboardi
 # ----------------------------------------------------------
-CHECK_COUNT="$(python3 -c '
-import json, sys
-with open(sys.argv[1], encoding="utf-8") as f:
-    print(len(json.load(f)["checks"]))
-' "$TMP")"
 
-echo
-echo "Õpilane:  $STUDENT_NAME"
-echo "Masin:    $MACHINE"
-echo "Host:     $(hostname)"
-echo "Kontrolle: $CHECK_COUNT"
-echo "Dashboard: ${DASHBOARD_URL%/}/api/report"
-echo
-
-HTTP_CODE="$(
+code="$(
     curl -sS \
         -o "$RESPONSE" \
         -w '%{http_code}' \
@@ -506,18 +602,14 @@ HTTP_CODE="$(
         "${DASHBOARD_URL%/}/api/report" || true
 )"
 
-if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
-    echo "Õnnestus: raport saadeti dashboardile (HTTP $HTTP_CODE)."
+if [[ "$code" == "200" || "$code" == "201" ]]; then
+    echo
+    echo "Tulemused saadeti dashboardi (HTTP $code)."
     cat "$RESPONSE"
     echo
 else
-    echo "VIGA: raporti saatmine ebaõnnestus (HTTP ${HTTP_CODE:-puudub})." >&2
-
-    if [[ -s "$RESPONSE" ]]; then
-        cat "$RESPONSE" >&2
-        echo >&2
-    fi
-
-    echo "Kontrolli dashboardi aadressi, tokenit ja serveri logisid." >&2
+    echo
+    echo "VIGA: raporti saatmine ebaõnnestus (HTTP ${code:-puudub})." >&2
+    cat "$RESPONSE" 2>/dev/null || true
     exit 1
 fi
