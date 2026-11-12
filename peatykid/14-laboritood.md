@@ -35,7 +35,8 @@ Osa III (andmebaasipõhine meiliserver) laborid **13–15** on peatükis [20](20
 6. Hostinimed: `debian` ja `mail` + `/etc/hosts` (2.6).
 7. `sudo apt update && sudo apt full-upgrade -y` ja põhitööriistad (2.7).
 8. `ufw`: luba OpenSSH ja lülita sisse mõlemas (2.10).
-9. Windowsi klient jääb DHCP peale (vaikeseade). Kuni DHCP-serverit pole (labor 3), on tal `169.254.x.x` aadress – see on ootuspärane.
+9. Debian: paigalda rsyslog (2.9.2). Kontrolli, et tekkisid failid `/var/log/syslog` ja `/var/log/auth.log`. Saada `logger "Labor 1 – perenimi"` ja leia see rida failist `/var/log/syslog`.
+10. Windowsi klient jääb DHCP peale (vaikeseade). Kuni DHCP-serverit pole (labor 3), on tal `169.254.x.x` aadress – see on ootuspärane.
 
 **Kontrollpunkt:**
 
@@ -108,6 +109,8 @@ dig +short debian.org                     # IP (edastajad töötavad)
 8. **Reserveering:** tee Windowsile reserveering `.100` (4.10), lisa DNS-i `win11` A-kirje. Kontrolli `ipconfig /all` ja `nslookup win11`.
 9. **Rikkekatse:** peata Kea (`sudo systemctl stop kea-dhcp4-server`), tee Windowsis `ipconfig /release` ja `ipconfig /renew`. Mis aadressi Windows sai? Mis on veateade? Käivita Kea uuesti.
 10. **Vahemälu katse:** küsi Windowsis `nslookup www.perenimi.local`. Muuda tsoonis `www` IP-ks `192.168.XXX.99`, **ära suurenda seerianumbrit**, tee `sudo rndc reload perenimi.local`. Vaata `sudo journalctl -u named -n 5` – mis hoiatus on? Mida vastab `dig @127.0.0.1 www.perenimi.local` Debianis ja mida `ping www.perenimi.local` Windowsis? Tee Windowsis `ipconfig /displaydns`, siis `ipconfig /flushdns` ja proovi uuesti. Taasta IP ja suurenda seerianumbrit.
+11. **SSH-võtmed:** nüüd on Windowsil aadress. Loo Windowsis võtmepaar `ssh-keygen -t ed25519` (2.8.3), kopeeri avalik võti Debiani ja Ubuntusse (2.8.4) ja tee fail `~/.ssh/config` lühinimedega `debian` ja `ubuntu` (2.8.5). Ava Debianis `sudo tail -f /var/log/auth.log` ja logi Windowsist sisse `ssh debian`: leia rida `Accepted publickey`.
+12. Tee võtmed ka serverite vahel (2.8.7): Debiani root → Ubuntu (laboris 7 serdid) ja Ubuntu `opilane` → Debian (laboris 9 DKIM-kirje). Seejärel keela mõlemas serveris paroolisisselogimine (2.8.6). Kontrolli: `ssh -o PubkeyAuthentication=no debian` → `Permission denied (publickey)`.
 
 **Kontrollpunkt:**
 
@@ -129,6 +132,7 @@ sudo cat /var/lib/kea/kea-leases4.csv   # Windowsi MAC ja aadress
 5. Mis vahe on staatilisel aadressil ja reserveeringul? Millal kasutada kumbagi?
 6. Miks nägid sammus 10 Debian ja Windows erinevaid vastuseid? Kes kasutab seerianumbrit ja kes TTL-i?
 7. Miks soovitab ISC kasutada Kead, mitte `isc-dhcp-server`-it?
+8. Mis vahe on failidel `id_ed25519` ja `id_ed25519.pub`? Kumb fail läheb serverisse ja miks ei tohi teine arvutist lahkuda?
 
 ---
 

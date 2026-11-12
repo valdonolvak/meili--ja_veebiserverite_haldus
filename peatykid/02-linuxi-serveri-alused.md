@@ -13,7 +13,8 @@ Enne teenuste paigaldamist peavad mõlemad Linuxi serverid olema ühtemoodi korr
 | Nimeserver (*resolver*) | Server, kellelt masin küsib nimede IP-aadresse. | `192.168.XXX.10` (Debian) |
 | Otsingudomeen (*search*) | Lisatakse lühinimele automaatselt: `ping mail` → `mail.perenimi.local`. | `perenimi.local` |
 | systemd / `systemctl` | Teenuste haldur: käivitab, peatab, lubab automaatkäivituse. | `systemctl status apache2` |
-| journald / `journalctl` | Süsteemi logi. | `journalctl -u named -f` |
+| journald / `journalctl` | Süsteemi logi (binaarne andmebaas). | `journalctl -u named -f` |
+| rsyslog | Kirjutab logid tekstifailidesse kausta `/var/log/`. | `tail -f /var/log/syslog` |
 | Pakihaldur `apt` | Paigaldab ja uuendab tarkvara. | `apt install bind9` |
 | `sudo` | Käivitab ühe käsu administraatori (root) õigustes. | `sudo nano /etc/hosts` |
 | SSH | Krüpteeritud kaughaldus (port 22). | `ssh opilane@192.168.XXX.10` |
@@ -175,30 +176,221 @@ sudo apt install -y curl wget nano unzip ca-certificates bind9-dnsutils net-tool
 
 `bind9-dnsutils` annab käsud `dig`, `nslookup`, `host`; `net-tools` vana `netstat`-i (uus vaste on `ss`).
 
-### 2.8 SSH
+### 2.8 SSH ja võtmepõhine sisselogimine Windowsist
 
-Debian paigaldab OpenSSH serveri, kui paigaldusel valiti „SSH server“. Kontrolli ja vajadusel paigalda:
+Servereid hallatakse **kaugelt**. Proxmoxi konsool sobib paigalduseks ja hädaolukorraks, aga igapäevatöö käib SSH-ga (*Secure Shell*, port 22): Windowsi PowerShellist saab käske kopeerida ja kleepida, avada mitu akent korraga ning kopeerida faile `scp`-ga.
+
+> **Millal Windowsist ühenduda?** Windowsi klient saab IP-aadressi Debiani DHCP-serverilt (peatükk 4, labor 3). Enne seda on tal aadress `169.254.x.x` ja serveritesse ta ei ulatu. Tee jaotis 2.8.1 kohe, jaotised 2.8.2–2.8.6 aga pärast laborit 3. Kui tahad SSH-d kohe kasutada, pane Windowsile ajutiselt käsitsi aadress `192.168.XXX.200/24` ja hiljem taasta DHCP (2.11).
+
+#### 2.8.1 SSH-server mõlemas Linuxis
+
+Debian paigaldab OpenSSH serveri, kui paigaldusel valiti „SSH server“. Ubuntu Serveri paigaldaja küsib sama („Install OpenSSH server“). Kontrolli ja vajadusel paigalda.
+
+**Debian ja Ubuntu:**
 
 ```bash
 sudo apt install -y openssh-server
 sudo systemctl enable --now ssh
+sudo ss -tlnp | grep :22          # LISTEN 0.0.0.0:22 … sshd
 ```
 
-Windowsi kliendis on OpenSSH klient olemas (PowerShell või cmd):
+#### 2.8.2 Esimene ühendus parooliga
+
+Windows 11-s on OpenSSH klient vaikimisi olemas. Kontroll PowerShellis: `ssh -V` → `OpenSSH_for_Windows_9.x`. Kui käsku pole, lisa see: *Settings → System → Optional features → Add a feature → OpenSSH Client* või administraatori PowerShellis:
+
+```powershell
+Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+```
+
+Ühendu (PowerShell või cmd):
 
 ```powershell
 ssh opilane@192.168.XXX.10
 ```
 
-Linuxist teise Linuxi failide kopeerimiseks kasutame `scp`-d (vaja peatükis 8):
+Esimesel korral küsib SSH:
+
+```text
+The authenticity of host '192.168.XXX.10 (192.168.XXX.10)' can't be established.
+ED25519 key fingerprint is SHA256:q3V9…kX0.
+Are you sure you want to continue connecting (yes/no/[fingerprint])?
+```
+
+See on **serveri** tuvastamine: iga SSH-server tekitab paigaldamisel oma võtmepaari (*host key*) ja klient jätab selle sõrmejälje meelde faili `C:\Users\<kasutaja>\.ssh\known_hosts`. Järgmistel kordadel kontrollib klient, et tegemist on sama serveriga. Põhimõte on sama mis TLS-serdil (peatükk 8), ainult ilma CA-ta: esimesel korral usaldad sõrmejälge ise.
+
+Korrektne on sõrmejälg enne `yes` vastamist üle kontrollida. Vaata seda serveri konsoolis (Proxmox):
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub     # 256 SHA256:q3V9…kX0 root@debian (ED25519)
+```
+
+Kui sõrmejäljed ühtivad, vasta `yes` ja sisesta parool. Tee sama Ubuntuga: `ssh opilane@192.168.XXX.20`.
+
+> **`WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!`** – serveri võti on teine kui meelde jäetud. Laboris tähendab see peaaegu alati, et masin paigaldati uuesti või tõmmisest taastati. Päris elus võib see tähendada ka ründajat ühenduse vahel. Kui oled kindel, et server paigaldati uuesti, kustuta vana kirje: `ssh-keygen -R 192.168.XXX.10`.
+
+#### 2.8.3 Võtmepaari loomine Windowsis
+
+Parooliga sisselogimine töötab, aga sellel on kaks puudust: parooli tuleb iga kord trükkida ja internetis olevat SSH-serverit proovivad robotid ööpäev läbi paroole ära arvata. **Võtmepõhine sisselogimine** kasutab sama ideed nagu TLS (peatükk 8.3):
+
+- **privaatvõti** jääb Windowsi arvutisse ega liigu kunagi võrku;
+- **avalik võti** kopeeritakse serveri faili `~/.ssh/authorized_keys`;
+- sisselogimisel saadab server juhusliku väljakutse, klient allkirjastab selle privaatvõtmega ja server kontrollib allkirja avaliku võtmega. Parooli võrgus ei liigu.
+
+Loo võtmepaar **Windowsis** (PowerShell, tavakasutajana):
+
+```powershell
+ssh-keygen -t ed25519 -C "opilane@win11"
+```
+
+```text
+Generating public/private ed25519 key pair.
+Enter file in which to save the key (C:\Users\opilane/.ssh/id_ed25519):      ← Enter
+Enter passphrase (empty for no passphrase):                                   ← salafraas
+Enter same passphrase again:
+Your identification has been saved in C:\Users\opilane/.ssh/id_ed25519
+Your public key has been saved in C:\Users\opilane/.ssh/id_ed25519.pub
+```
+
+| Valik / fail | Selgitus |
+| --- | --- |
+| `-t ed25519` | Võtme tüüp. Ed25519 on kaasaegne, lühike ja kiire. Vanemate seadmete jaoks kasutatakse `-t rsa -b 4096`. |
+| `-C "opilane@win11"` | Kommentaar. See jääb avaliku võtme lõppu ja aitab serveri `authorized_keys` failis aru saada, kelle võti see on. |
+| Salafraas (*passphrase*) | Krüpteerib privaatvõtme failis. Kui keegi faili varastab, ei saa ta seda ilma salafraasita kasutada. Laboris võib jätta tühjaks, päris töös mitte. |
+| `id_ed25519` | **Privaatvõti.** Ära kopeeri seda kuhugi ega saada kellelegi. |
+| `id_ed25519.pub` | **Avalik võti**, üks tekstirida. Selle võib anda igale serverile, kuhu tahad sisse logida. |
+
+Vaata avalikku võtit:
+
+```powershell
+type $env:USERPROFILE\.ssh\id_ed25519.pub
+# ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI…  opilane@win11
+```
+
+#### 2.8.4 Avaliku võtme kopeerimine serveritesse
+
+Linuxis on selleks käsk `ssh-copy-id`, Windowsis seda pole. Sama asja teeb üks PowerShelli rida: loeb avaliku võtme ja lisab selle SSH kaudu serveris faili `~/.ssh/authorized_keys` lõppu. Viimast korda küsitakse parooli.
+
+**Windows (PowerShell) – Debian:**
+
+```powershell
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh opilane@192.168.XXX.10 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+**Windows (PowerShell) – Ubuntu:**
+
+```powershell
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh opilane@192.168.XXX.20 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+Mida jutumärkides olev käsk serveris teeb:
+
+| Osa | Selgitus |
+| --- | --- |
+| `mkdir -p ~/.ssh` | Loob kausta, kui seda veel pole. |
+| `chmod 700 ~/.ssh` | Kausta pääseb ainult omanik. **SSH-server ignoreerib võtmeid, kui kaust või fail on teistele kirjutatav** – see kaitseb olukorra eest, kus keegi teine lisab sinu kontole oma võtme. |
+| `cat >> ~/.ssh/authorized_keys` | Lisab torust (`\|`) tuleva avaliku võtme faili **lõppu**. `>>` ei kirjuta olemasolevaid võtmeid üle. |
+| `chmod 600 …` | Faili loeb ja kirjutab ainult omanik. |
+
+Proovi uuesti:
+
+```powershell
+ssh opilane@192.168.XXX.10
+ssh opilane@192.168.XXX.20
+```
+
+Parooli ei küsita (kui panid salafraasi, küsitakse salafraasi). Serveris näed oma võtit:
+
+```bash
+cat ~/.ssh/authorized_keys
+```
+
+Kui parooli küsitakse ikka, vaata ühenduse logi: `ssh -v opilane@192.168.XXX.10`. Read `Offering public key: …id_ed25519` ja `Server accepts key` näitavad, kas võti pakuti ja võeti vastu. Serveri poolel on põhjus näha failis `/var/log/auth.log` (vt 2.9.2), tavaliselt `Authentication refused: bad ownership or modes for directory /home/opilane/.ssh`.
+
+#### 2.8.5 Lühinimed: fail ~/.ssh/config Windowsis
+
+IP-aadresside ja kasutajanime trükkimise asemel tee Windowsis seadistusfail:
+
+```powershell
+New-Item -ItemType File -Force $env:USERPROFILE\.ssh\config
+notepad $env:USERPROFILE\.ssh\config
+```
+
+```text
+Host debian
+    HostName 192.168.XXX.10
+    User opilane
+
+Host ubuntu
+    HostName 192.168.XXX.20
+    User opilane
+```
+
+Nüüd piisab käskudest `ssh debian` ja `ssh ubuntu`. Samad nimed töötavad ka `scp`-ga: `scp ubuntu:/etc/postfix/main.cf .` Kui DNS töötab (peatükk 3), võid `HostName` real kasutada nimesid `debian.perenimi.local` ja `mail.perenimi.local`.
+
+> **Salafraas ilma iga kord trükkimata:** Windowsis on teenus `ssh-agent`, mis hoiab lahtikrüpteeritud võtit mälus kuni väljalogimiseni. Administraatori PowerShellis: `Get-Service ssh-agent | Set-Service -StartupType Automatic; Start-Service ssh-agent`. Siis tavakasutajana: `ssh-add` (küsib salafraasi üks kord).
+
+#### 2.8.6 Paroolisisselogimise keelamine
+
+Kui võtmega sisselogimine töötab **mõlemasse** serverisse, võib parooli SSH jaoks keelata. Siis ei aita ründajale ka õigesti ära arvatud parool. Seadistus läheb eraldi faili kausta `sshd_config.d`, nii et põhifail jääb puutumata ja uuendused seda üle ei kirjuta.
+
+**Debian ja Ubuntu:**
+
+```bash
+sudo nano /etc/ssh/sshd_config.d/10-labor.conf
+```
+
+```text
+PasswordAuthentication no
+PermitRootLogin no
+```
+
+```bash
+sudo sshd -t                                  # süntaksi kontroll, vigade puudumisel väljund puudub
+sudo sshd -T | grep -E "^passwordauthentication|^permitrootlogin"
+sudo systemctl restart ssh
+```
+
+- `PasswordAuthentication no` – parooliga SSH-i kaudu sisse ei saa. Konsoolis (Proxmox) töötab parool edasi.
+- `PermitRootLogin no` – root ei saa SSH-ga otse sisse. Logitakse sisse oma kasutajaga ja kasutatakse `sudo`-d, nii jääb logisse jälg, kes mida tegi.
+- Faili nimi algab numbriga **10**, sest sshd kasutab iga valiku puhul **esimest leitud väärtust** ja loeb faile tähestikulises järjekorras. Ubuntus võib paigaldaja olla loonud faili `50-cloud-init.conf` reaga `PasswordAuthentication yes`. Kui meie fail oleks nimega `60-…`, jääks see rida peale. `sshd -T` näitab tegelikult kehtivat väärtust.
+
+> ⚠️ **Ära sulge olemasolevat SSH-akent enne, kui oled uues aknas edukalt sisse loginud.** Kui midagi läks valesti, saad vanas aknas vea parandada. Hädaolukorras aitab Proxmoxi konsool.
+
+Kontroll Windowsist: `ssh -o PubkeyAuthentication=no opilane@192.168.XXX.10` → `Permission denied (publickey).` See tähendab, et parooliga enam sisse ei saa.
+
+#### 2.8.7 Failide kopeerimine Linuxite vahel
+
+Peatükis 8 kopeerime serdid Debianist Ubuntule `scp`-ga:
 
 ```bash
 scp fail.txt opilane@192.168.XXX.20:/home/opilane/
 ```
 
-Turvalisuse jaoks soovitatav (valikuline laboris): võtmepõhine sisselogimine (`ssh-keygen`, `ssh-copy-id`) ja failis `/etc/ssh/sshd_config` `PermitRootLogin no`.
+Kui keelasid paroolisisselogimise (2.8.6), vajab ka **Debian** Ubuntu jaoks võtit. Peatükis 8 käivitatakse `scp` **root**'ina (CA failid on kaustas `/root/labori-ca`), seega teeme võtme root'ile. Võti lubab Debiani root'il logida Ubuntusse sisse kasutajana `opilane`, mitte root'ina.
+
+**Debian:**
+
+```bash
+sudo -i
+ssh-keygen -t ed25519 -C "root@debian"        # Enter, Enter, Enter
+ssh-copy-id opilane@192.168.XXX.20
+exit
+```
+
+Peatükis 11 kopeerib Ubuntu DKIM-kirje Debiani kasutajana `opilane`. Seega tee samamoodi võti ka Ubuntu kasutajale.
+
+**Ubuntu (kasutajana `opilane`):**
+
+```bash
+ssh-keygen -t ed25519 -C "opilane@mail"       # Enter, Enter, Enter
+ssh-copy-id opilane@192.168.XXX.10
+```
+
+`ssh-copy-id` teeb sama, mida Windowsis tegi pikk PowerShelli rida. NB! Ka `ssh-copy-id` vajab ühe korra parooli, nii et tee see **enne** paroolisisselogimise keelamist. Kui keelasid juba, lisa avaliku võtme (`id_ed25519.pub`) sisu teise serveri faili `/home/opilane/.ssh/authorized_keys` lõppu Windowsi SSH-akna kaudu (`nano`).
 
 ### 2.9 Teenused ja logid
+
+#### 2.9.1 systemctl ja journalctl
 
 | Tegevus | Käsk |
 | --- | --- |
@@ -208,9 +400,71 @@ Turvalisuse jaoks soovitatav (valikuline laboris): võtmepõhine sisselogimine (
 | Automaatkäivitus sisse ja kohe käima | `sudo systemctl enable --now apache2` |
 | Teenuse logi | `sudo journalctl -u apache2 -n 50` |
 | Logi reaalajas | `sudo journalctl -u postfix -f` |
+| Logi alates kellaajast | `sudo journalctl -u ssh --since "10 min ago"` |
+| Ainult vead | `sudo journalctl -p err -b` (`-b` = alates viimasest käivitusest) |
 | Millised pordid kuulavad | `sudo ss -tlnp` (t = TCP, l = kuulavad, n = numbrid, p = protsess) |
 
-**Debian 13 ei kirjuta vaikimisi faile `/var/log/syslog` ja `/var/log/mail.log`** – logid on ainult journalis (`journalctl`). Ubuntu 24.04-l on rsyslog olemas ja meiliserveri logi on failis `/var/log/mail.log` – seda kasutab ka fail2ban (peatükk 11).
+Kõik teenused saadavad oma logiread **systemd-journaldile**. See hoiab neid binaarses andmebaasis, mida loetakse käsuga `journalctl`. Journal on mugav ühe teenuse logi vaatamiseks, aga tavaliste tööriistadega (`tail`, `grep`, `less`) seda otse lugeda ei saa ning paljud programmid (nt fail2ban, logianalüsaatorid, vanemad juhendid) eeldavad klassikalisi tekstifaile kaustas `/var/log/`.
+
+#### 2.9.2 rsyslog: klassikalised logifailid
+
+**rsyslog** võtab journaldilt logiread vastu ja kirjutab need **tekstifailidesse**, sorteerides need allika (*facility*) järgi. Ubuntu 24.04-l on rsyslog vaikimisi olemas. **Debian 13 ei paigalda rsyslogi vaikimisi** ja seepärast pole seal faile `/var/log/syslog`, `/var/log/auth.log` ega `/var/log/mail.log`.
+
+**Debian:**
+
+```bash
+sudo apt install -y rsyslog
+sudo systemctl enable --now rsyslog
+ls -l /var/log/*.log /var/log/syslog
+```
+
+Ubuntus kontrolli, et teenus töötab: `systemctl status rsyslog`.
+
+Millisesse faili mis läheb, on kirjas failis `/etc/rsyslog.conf` (Ubuntus `/etc/rsyslog.d/50-default.conf`). Iga rida on kujul **allikas.tase  sihtfail**:
+
+```text
+*.*;auth,authpriv.none      -/var/log/syslog
+auth,authpriv.*             /var/log/auth.log
+cron.*                      -/var/log/cron.log
+kern.*                      -/var/log/kern.log
+mail.*                      -/var/log/mail.log
+user.*                      -/var/log/user.log
+```
+
+| Fail | Mis seal on | Selles kursuses |
+| --- | --- | --- |
+| `/var/log/syslog` | kõik peale autentimise – üldine „kõik ühes kohas“ logi | BIND9, Kea DHCP, Apache'i käivitumine, MariaDB |
+| `/var/log/auth.log` | sisselogimised, `sudo` kasutamine, SSH | 2.8 võtmete kontroll, fail2ban SSH kaitse |
+| `/var/log/mail.log` | Postfix, Dovecot, OpenDKIM | peatükid 10–13, fail2ban meiliserveri kaitse |
+| `/var/log/kern.log` | tuuma teated, ufw blokeeritud paketid (`[UFW BLOCK]`) | tulemüüri tõrkeotsing (2.10) |
+
+- `*.*` – kõik allikad, kõik tasemed. `auth,authpriv.none` – välja arvatud autentimine. Paroolide ja kasutajanimedega seotud read on eraldi failis `auth.log`, mida loeb ainult grupp `adm`.
+- `-` failinime ees tähendab, et rsyslog ei sünkrooni faili kettale iga rea järel. See on kiirem; voolukatkestuse korral võivad viimased read kaduma minna.
+- Apache kirjutab oma päringulogid ise kausta `/var/log/apache2/` ja MariaDB kausta `/var/log/mysql/`. Need ei sõltu rsyslogist.
+
+Logifailide lugemine:
+
+```bash
+sudo tail -f /var/log/syslog                         # reaalajas, Ctrl+C lõpetab
+sudo tail -n 30 /var/log/auth.log                    # viimased 30 rida
+sudo grep sshd /var/log/auth.log | tail              # ainult SSH read
+sudo grep -i "error\|fail" /var/log/syslog | tail    # vead
+sudo less +F /var/log/mail.log                       # sirvimine; Ctrl+C, siis q
+```
+
+Proovi kohe: ava Debianis `sudo tail -f /var/log/auth.log` ja logi Windowsist sisse `ssh debian`. Ilmub rida:
+
+```text
+2026-11-12T22:58:01.123456+02:00 debian sshd-session[2412]: Accepted publickey for opilane from 192.168.XXX.57 port 50122 ssh2: ED25519 SHA256:Hx7…
+```
+
+Rea osad on aeg (Debian 13 ja Ubuntu 24.04 kasutavad täpset ISO 8601 vormingut koos ajavööndiga), hostinimi, programm ja protsessi number nurksulgudes ning teade. `Accepted publickey` näitab, et sisselogimine käis võtmega. Parooliga oleks see `Accepted password`. Vale parooli korral on rida `Failed password for …` – just neid ridu otsib hiljem fail2ban (peatükk 11).
+
+Teine kiire test: `logger "Tere logist"` saadab teate süsteemilogisse ja `sudo tail -n1 /var/log/syslog` näitab seda.
+
+**Logide rotatsioon.** Et failid ketast täis ei kirjutaks, vahetab **logrotate** need regulaarselt (vaikimisi kord nädalas): `syslog` → `syslog.1` → `syslog.2.gz` … Vanimad failid kustutatakse. Mitu faili alles hoitakse ja kui tihti vahetatakse, on kirjas failis `/etc/logrotate.d/rsyslog`. Vanu pakitud faile saab lugeda käsuga `zless` või `zgrep`, nt `sudo zgrep sshd /var/log/auth.log.2.gz`.
+
+> **journalctl või /var/log?** Mõlemad näitavad sama infot, sest rsyslog saab read journaldist. `journalctl -u teenus` on mugavam, kui tead, millist teenust otsid. Tekstifailid on mugavamad, kui otsid sündmust mitme teenuse ulatuses (`grep`), kopeerid logi kellelegi või kui tööriist (fail2ban) eeldab faili. Selles kursuses kasutame mõlemat.
 
 ### 2.10 Tulemüür ufw
 
