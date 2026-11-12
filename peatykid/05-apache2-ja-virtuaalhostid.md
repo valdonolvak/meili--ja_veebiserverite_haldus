@@ -51,6 +51,39 @@ Windowsi kliendis ava `http://192.168.XXX.10` – näed lehte „Apache2 Debian 
 
 ### 5.4 Saitide kaustad ja testlehed
 
+Iga sait vajab oma kausta, kust Apache faile võtab. Seda kausta nimetatakse **DocumentRoot**: kui brauser küsib `http://wp.perenimi.local/`, saadab Apache faili `/var/www/wp.perenimi.local/index.html`. Teeme kolm kausta ja igasse lihtsa testlehe. Nii näeme hiljem kohe, millise saidi Apache valis.
+
+| Sait | Kaust (DocumentRoot) | Testlehe fail |
+| --- | --- | --- |
+| `www.perenimi.local` | `/var/www/www.perenimi.local` | `index.html` |
+| `wp.perenimi.local` | `/var/www/wp.perenimi.local` | `index.html` (hiljem asendab WordPress) |
+| `blogi.perenimi.local` | `/var/www/blogi.perenimi.local` | `index.html` (hiljem asendab WordPress) |
+
+Kausta nimi on sama mis saidi nimi. See ei ole Apache'i nõue, aga see on hea tava: kaustast on kohe näha, millise saidi failid seal on.
+
+#### Variant A – käsud ükshaaval
+
+Kõige selgem on teha iga sait eraldi. Kopeeri ja käivita **Debiani terminalis** järgmised käsud. Need on tavalised käsud, mitte skriptifail.
+
+**Debian:**
+
+```bash
+sudo mkdir -p /var/www/www.perenimi.local
+echo "<h1>www.perenimi.local</h1><p>Debian · Apache2 vhost töötab.</p>" | sudo tee /var/www/www.perenimi.local/index.html
+
+sudo mkdir -p /var/www/wp.perenimi.local
+echo "<h1>wp.perenimi.local</h1><p>Debian · Apache2 vhost töötab.</p>" | sudo tee /var/www/wp.perenimi.local/index.html
+
+sudo mkdir -p /var/www/blogi.perenimi.local
+echo "<h1>blogi.perenimi.local</h1><p>Debian · Apache2 vhost töötab.</p>" | sudo tee /var/www/blogi.perenimi.local/index.html
+
+sudo chown -R www-data:www-data /var/www
+```
+
+#### Variant B – sama asi tsükliga
+
+Kolm plokki on peaaegu ühesugused, erineb ainult saidi nimi. Sellisel juhul kasutatakse Linuxis **`for`-tsüklit**. Tsükkel on samuti tavaline käsk: kopeeri kõik read korraga terminali ja vajuta Enter. Shell näitab rea alguses `>` märki, kuni tsükkel on lõpetatud sõnaga `done`, ja käivitab siis kogu tsükli.
+
 **Debian:**
 
 ```bash
@@ -62,7 +95,41 @@ done
 sudo chown -R www-data:www-data /var/www
 ```
 
-`for` tsükkel teeb sama asja kolm korda – iga saidi nimega.
+Variandid A ja B annavad **täpselt sama tulemuse**. Tee ainult üks neist.
+
+**Mida iga rida teeb:**
+
+| Rida | Selgitus |
+| --- | --- |
+| `for s in www wp blogi; do` | Muutuja `s` saab järjest väärtused `www`, `wp` ja `blogi`. Iga väärtusega täidetakse `do` ja `done` vahel olevad read üks kord, kokku kolm korda. |
+| `$s` | Asendatakse muutuja väärtusega. Esimesel ringil muutub `/var/www/$s.perenimi.local` kujule `/var/www/www.perenimi.local`, teisel `/var/www/wp.perenimi.local` jne. |
+| `sudo mkdir -p /var/www/$s.perenimi.local` | Loob kausta. `-p` tähendab, et käsk ei anna viga, kui kaust on juba olemas. Kausta `/var/www` tohib muuta ainult root, seepärast `sudo`. |
+| `echo "<h1>…</h1><p>…</p>"` | Trükib ühe rea HTML-i: pealkiri saidi nimega ja lause. |
+| `\` rea lõpus | Käsk jätkub järgmisel real. See on ainult loetavuse jaoks, sest pikk käsk ei mahuks ühele reale. |
+| `\| sudo tee /var/www/…/index.html` | Toru `\|` annab `echo` väljundi käsule `tee`, mis kirjutab selle faili. Miks mitte `sudo echo "…" > fail`? Sest `>` suunamise teeb **sinu** shell tavakasutajana, mitte `sudo`, ja tulemuseks oleks `Permission denied`. `sudo tee` kirjutab faili root'i õigustes. `tee` näitab kirjutatud teksti ka ekraanil. |
+| `done` | Tsükli lõpp. |
+| `sudo chown -R www-data:www-data /var/www` | Teeb kõigi failide omanikuks kasutaja ja grupi `www-data`. Selle kasutajana töötab Apache. `-R` tähendab rekursiivselt ehk kõik alamkaustad ja failid. |
+
+**Miks omanik `www-data`?** Apache peab faile **lugema**. Seda saaks ka siis, kui omanik oleks root. WordPress (peatükk 6) peab aga oma kausta ka **kirjutama**: üles laaditud pildid, pluginad ja uuendused. Seepärast anname omandi kohe veebiserveri kasutajale. Tootmisserveris antakse kirjutusõigus tavaliselt ainult kaustadele, mis seda tõesti vajavad (nt `wp-content/uploads`).
+
+**Kontrolli tulemust:**
+
+```bash
+ls -l /var/www/
+cat /var/www/wp.perenimi.local/index.html
+```
+
+```text
+drwxr-xr-x 2 www-data www-data 4096 Nov 12 10:15 blogi.perenimi.local
+drwxr-xr-x 2 www-data www-data 4096 Nov 12 10:15 html
+drwxr-xr-x 2 www-data www-data 4096 Nov 12 10:15 wp.perenimi.local
+drwxr-xr-x 2 www-data www-data 4096 Nov 12 10:15 www.perenimi.local
+<h1>wp.perenimi.local</h1><p>Debian · Apache2 vhost töötab.</p>
+```
+
+Kaust `html` on Apache'i vaikesaidi kaust ja jäi paigaldusest alles. Seda me edaspidi ei kasuta.
+
+Brauserist neid lehti veel avada ei saa: Apache ei tea veel, et nimi `wp.perenimi.local` kuulub kausta `/var/www/wp.perenimi.local`. Selle seose teevad virtuaalhostid (5.6).
 
 ### 5.5 Vaikehost (püüab kinni tundmatud nimed)
 
@@ -75,6 +142,8 @@ sudo mkdir -p /var/www/vaike
 echo "<h1>Tundmatu sait</h1>" | sudo tee /var/www/vaike/index.html
 sudo nano /etc/apache2/sites-available/000-vaike.conf
 ```
+
+Esimesed kaks käsku teevad vaikehostile kausta ja testlehe samamoodi nagu 5.4-s. Kolmas avab redaktoris uue seadistusfaili. Faili nimi algab `000-`, sest Apache loeb kausta `sites-enabled` failid **tähestiku järjekorras** ja **esimene** `*:80` virtuaalhost saab vaikehostiks. Sinna jõuavad kõik päringud, mille nimi ei sobi ühegi teise vhostiga. Kirjuta faili:
 
 ```apache
 # Esimene laetud vhost = vaikehost
@@ -144,6 +213,13 @@ Tee `blogi.perenimi.local.conf` kopeerides ja asendades nime:
 sudo sed 's/wp\.perenimi/blogi.perenimi/g' /etc/apache2/sites-available/wp.perenimi.local.conf \
   | sudo tee /etc/apache2/sites-available/blogi.perenimi.local.conf
 ```
+
+See üks käsk asendab käsitsi kopeerimise ja muutmise:
+
+- `sed 's/wp\.perenimi/blogi.perenimi/g' fail` loeb faili `wp.perenimi.local.conf` ja asendab igal real teksti `wp.perenimi` tekstiga `blogi.perenimi`. `s/otsi/asenda/` on asendamise käsk, `g` (*global*) asendab rea kõik esinemised, mitte ainult esimese. `\.` tähendab päris punkti, sest `sed`-is tähistab üksik `.` „mis tahes märki“.
+- Originaalfaili `sed` **ei muuda**. Tulemus läheb toruga (`|`) käsule `sudo tee`, mis kirjutab selle uude faili `blogi.perenimi.local.conf`.
+
+Kontrolli, et asendus õnnestus: `grep perenimi /etc/apache2/sites-available/blogi.perenimi.local.conf`. Kõigis ridades peab olema `blogi`, mitte `wp`. Kui see tundub keeruline, võid sama teha ka käsitsi: kopeeri fail (`sudo cp /etc/apache2/sites-available/wp.perenimi.local.conf /etc/apache2/sites-available/blogi.perenimi.local.conf`) ja muuda `nano`-ga kõik viis kohta, kus on `wp.perenimi` (ServerName, DocumentRoot, Directory, ErrorLog, CustomLog).
 
 > Apache seadistuses peab `#` kommentaar olema **eraldi real**. Rea lõppu kirjutatud kommentaar (`AllowOverride All # selgitus`) annab `configtest`-il vea, sest Apache loeb `#` ja sellele järgnevad sõnad direktiivi argumentideks.
 
