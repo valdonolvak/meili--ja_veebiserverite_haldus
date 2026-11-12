@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-kirja teekonna simulaator – Postfix, Dovecot, OpenDKIM</title>
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--ink:#1f1e1c;--quiet:#6b6862;--line:#dcd9d2;--acc:#2f6fd6;--acc-t:#e8f0fc;--ok:#2e7d4f;--ok-t:#e5f3ea;--bad:#b3261e;--bad-t:#fbeae8;--warn:#9a6700;--warn-t:#fbf2dc;--mono:ui-monospace,Consolas,"DejaVu Sans Mono",monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b1a;--card:#252524;--ink:#ecebe8;--quiet:#a3a09a;--line:#3a3936;--acc:#7aa7f0;--acc-t:#24324a;--ok:#6cc08b;--ok-t:#1f3326;--bad:#f08a80;--bad-t:#3a2220;--warn:#e0b250;--warn-t:#3a311c}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:20px 24px 8px;max-width:1240px;margin:auto}
+header a{color:var(--acc)}
+h1{font-size:22px;margin:6px 0 4px}
+header p{margin:0;color:var(--quiet);max-width:900px}
+main{max-width:1240px;margin:auto;padding:12px 24px 40px;display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 10px}
+label.f{display:block;font-size:13px;color:var(--quiet);margin:10px 0 3px}
+select{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.faults label{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:6px 0;cursor:pointer}
+.faults input{margin-top:4px}
+.faults small{color:var(--quiet)}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 14px;font:inherit;cursor:pointer}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chain{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}
+.node{border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;min-width:92px;text-align:center;background:var(--card);transition:all .25s}
+.node b{display:block;font-size:13.5px}
+.node.act{border-color:var(--acc);background:var(--acc-t)}
+.node.ok{border-color:var(--ok);background:var(--ok-t)}
+.node.bad{border-color:var(--bad);background:var(--bad-t)}
+.node.warn{border-color:var(--warn);background:var(--warn-t)}
+.node.skip{opacity:.35}
+.arr{color:var(--quiet)}
+.trans{font-family:var(--mono);font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:260px;max-height:430px;overflow:auto;background:var(--bg)}
+.trans div{padding:2px 0;white-space:pre-wrap;word-break:break-word}
+.c{color:var(--acc)} .s{color:var(--warn)} .i{color:var(--quiet);font-family:system-ui,sans-serif;font-style:italic}
+.s.e{color:var(--bad);font-weight:600} .s.g{color:var(--ok)}
+.log{font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;word-break:break-all;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:220px;overflow:auto;color:var(--quiet)}
+.log .w{color:var(--bad)}
+.res{border-radius:8px;padding:10px 12px;font-size:14.5px}
+.res.ok{background:var(--ok-t);border:1px solid var(--ok)}
+.res.bad{background:var(--bad-t);border:1px solid var(--bad)}
+.res.warn{background:var(--warn-t);border:1px solid var(--warn)}
+.tasks li{margin:6px 0;font-size:14px}
+.tasks button{font-size:12.5px;padding:2px 8px;margin-left:4px}
+details{margin-top:4px;font-size:13.5px;color:var(--quiet)}
+table.auth{border-collapse:collapse;font-size:13.5px;margin-top:8px;width:100%}
+table.auth td,table.auth th{border:1px solid var(--line);padding:4px 8px;text-align:left}
+.pass{color:var(--ok);font-weight:600}.fail{color:var(--bad);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+<a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
+<h1>E-kirja teekonna simulaator</h1>
+<p>Vali, kes saadab, kellelt ja kellele, ning lülita sisse rikkeid. Simulaator näitab SMTP vestlust samm-sammult, Ubuntu <code>/var/log/mail.log</code> ridu ja seda, kus ahel katkeb. Serveri seadistus vastab peatükkidele 9–12 (domeen <code>perenimi.local</code>).</p>
+</header>
+<main>
+<section>
+<div class="card">
+<h2>Stsenaarium</h2>
+<label class="f" for="kanal">Kuidas kiri serverisse tuleb</label>
+<select id="kanal">
+<option value="rc">Roundcube veebimeil → port 587 (STARTTLS + AUTH)</option>
+<option value="tb">Thunderbird Windowsis → port 587 (STARTTLS + AUTH)</option>
+<option value="tbplain">Thunderbird → port 587, turvalisus „Puudub“</option>
+<option value="lab25">Debian1 käsurealt (swaks) → port 25, ilma paroolita</option>
+</select>
+<label class="f" for="login">Sisselogija (SASL kasutaja)</label>
+<select id="login"><option value="mari">mari</option><option value="jaan">jaan</option></select>
+<label class="f" for="pw">Parool</label>
+<select id="pw"><option value="ok">õige</option><option value="bad">vale</option></select>
+<label class="f" for="from">Saatja (MAIL FROM ja From:)</label>
+<select id="from"><option>mari@perenimi.local</option><option>jaan@perenimi.local</option><option>direktor@pank.ee</option></select>
+<label class="f" for="to">Saaja</label>
+<select id="to"><option>jaan@perenimi.local</option><option>keegi@gmail.com</option></select>
+</div>
+<div class="card faults">
+<h2>Rikked</h2>
+<label><input type="checkbox" id="f_dovecot"> <span>Dovecot on peatatud <small>(systemctl stop dovecot)</small></span></label>
+<label><input type="checkbox" id="f_dkim"> <span>OpenDKIM on peatatud</span></label>
+<label><input type="checkbox" id="f_helo"> <span>HELO piirangus puudub <code>permit_sasl_authenticated</code></span></label>
+<label><input type="checkbox" id="f_mynet"> <span><code>mynetworks = 10.0.XXX.0/24</code> <small>(liiga lai)</small></span></label>
+<label><input type="checkbox" id="f_rc143"> <span>Roundcube: <code>imap_host = localhost:143</code> <small>(paketi vaikeväärtus)</small></span></label>
+<label><input type="checkbox" id="f_ca"> <span>Ubuntu ei usalda labori CA-d <small>(update-ca-certificates tegemata)</small></span></label>
+<label><input type="checkbox" id="f_ufw"> <span>ufw: port 587 lubamata</span></label>
+<label><input type="checkbox" id="f_ban"> <span>Windowsi IP on fail2ban-i vanglas</span></label>
+<label><input type="checkbox" id="f_sasl"> <span><code>libsasl2-modules</code> paigaldamata</span></label>
+<label><input type="checkbox" id="f_relaypw"> <span>Relay parool vale <small>(sasl_passwd)</small></span></label>
+</div>
+<div class="card">
+<h2>Ülesanded</h2>
+<ol class="tasks" id="tasks"></ol>
+</div>
+</section>
+<section>
+<div class="card">
+<h2>Teekond</h2>
+<div class="chain" id="chain"></div>
+<div class="row" style="margin-top:4px">
+<button class="btn primary" id="next">Järgmine samm ▶</button>
+<button class="btn" id="all">Näita kõik</button>
+<button class="btn" id="reset">Algusesse</button>
+</div>
+</div>
+<div class="card">
+<h2>Vestlus <small style="color:var(--quiet);font-weight:400">— <span class="c">sinine</span> = klient, <span class="s">pruun</span> = server</small></h2>
+<div class="trans" id="trans"></div>
+</div>
+<div class="card">
+<h2>Tulemus</h2>
+<div id="res" class="res warn">Vajuta „Järgmine samm“.</div>
+<div id="authbox"></div>
+</div>
+<div class="card">
+<h2>/var/log/mail.log (Ubuntu)</h2>
+<div class="log" id="log"></div>
+</div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const NODES=[["klient","Klient"],["rc","Roundcube"],["fw","Tulemüür"],["smtpd","Postfix smtpd"],["auth","Dovecot auth"],["rules","Piirangud"],["dkim","OpenDKIM"],["qmgr","qmgr"],["lmtp","Dovecot LMTP"],["relay","Relay"],["dest","Adressaat"]];
+const QID=()=>Array.from({length:10},()=>"0123456789ABCDEF"[Math.floor(Math.random()*16)]).join("");
+let steps=[],pos=0,final=null,logs=[],authTable=null;
+
+function cfg(){const c={};["kanal","login","pw","from","to"].forEach(k=>c[k]=$(k).value);
+ ["dovecot","dkim","helo","mynet","rc143","ca","ufw","ban","sasl","relaypw"].forEach(k=>c[k]=$("f_"+k).checked);return c;}
+
+function build(c){
+ steps=[];logs=[];final=null;authTable=null;
+ const t=new Date();const ts=()=>{t.setSeconds(t.getSeconds()+1);return t.toLocaleString("en-US",{month:"short"})+" "+String(t.getDate()).padStart(2," ")+" "+t.toTimeString().slice(0,8)+" mail ";};
+ const S=(node,cls,text,st)=>steps.push({node,cls,text,st});
+ const L=(t,w)=>steps.push({log:ts()+t,w});
+ const END=(kind,msg)=>{steps.push({end:{kind,msg}});};
+ const q=QID();
+ const auth=c.kanal!=="lab25";
+ const rc=c.kanal==="rc";
+ const local=c.to.endsWith("@perenimi.local");
+ const cip=c.kanal==="lab25"?"10.0.XXX.10":(rc?"10.0.XXX.30":"10.0.XXX.100");
+ const cname=c.kanal==="lab25"?"debian1.perenimi.local":(rc?"mail.perenimi.local":"unknown");
+ const helo=c.kanal==="lab25"?"debian1.perenimi.local":(rc?"mail.perenimi.local":"DESKTOP-AB12");
+ const svc=c.kanal==="lab25"?"postfix/smtpd":"postfix/submission/smtpd";
+
+ S("klient","i",{rc:"Mari avab brauseris https://mail.perenimi.local ja logib sisse.",tb:"Thunderbird Windowsi kliendis (10.0.XXX.100) saadab kirja.",tbplain:"Thunderbird, mille kontol on väljuva serveri turvalisuseks valitud „Puudub“.",lab25:"Debian1-s käivitatakse swaks ilma autentimiseta pordile 25 (nagu teine meiliserver)."}[c.kanal],"ok");
+
+ if(rc){
+  S("rc","i","Roundcube (PHP) kontrollib parooli IMAP-sisselogimisega Dovecotti.","act");
+  if(c.rc143){S("rc","c","→ IMAP localhost:143","act");S("rc","s e","Connection refused – port 143 on Dovecotis suletud (port = 0)","bad");
+   steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: Login failed for mari against localhost from 10.0.XXX.100. Could not connect to localhost:143: Connection refused",w:1});
+   END("bad","Roundcube'i sisselogimine ebaõnnestub: „Ühendus IMAP-serveriga ebaõnnestus“. Paketi vaikeseadistus ei sobi karmistatud serveriga – vaja on <code>ssl://mail.perenimi.local:993</code> (11.3).");return;}
+  if(c.ca){S("rc","c","→ IMAP ssl://mail.perenimi.local:993","act");S("rc","s e","TLS: certificate verify failed (unable to get local issuer certificate)","bad");
+   steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: … SSL operation failed … certificate verify failed",w:1});
+   END("bad","Roundcube ei usalda Dovecoti serti, sest Ubuntu ise ei usalda labori CA-d. Lahendus: <code>ca.crt</code> → <code>/usr/local/share/ca-certificates/</code> ja <code>update-ca-certificates</code> (7.8).");return;}
+  if(c.dovecot){S("rc","c","→ IMAP ssl://mail.perenimi.local:993","act");S("rc","s e","Connection refused – Dovecot ei tööta","bad");
+   END("bad","Roundcube'i ei saa sisse logida, sest IMAP-server (Dovecot) on maas. <code>systemctl status dovecot</code>.");return;}
+  S("rc","c","→ a1 LOGIN mari ••••••  (ssl://mail.perenimi.local:993)","act");
+  if(c.pw==="bad"){S("rc","s e","a1 NO [AUTHENTICATIONFAILED] Authentication failed.","bad");
+   steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: Login failed for mari@perenimi.local against mail.perenimi.local from 10.0.XXX.100. AUTHENTICATE PLAIN: Authentication failed.",w:1});
+   END("bad","Vale parool – Roundcube näitab „Sisselogimine ebaõnnestus“. fail2ban-i vangla <code>roundcube-auth</code> loeb neid ridu; 5 korda 10 minuti jooksul = IP blokeeritakse.");return;}
+  S("rc","s g","a1 OK Logged in","ok");
+  S("rc","i","Mari kirjutab kirja ja vajutab „Saada“. Roundcube ühendub Postfixiga – SMTP klient on nüüd Ubuntu ise.","ok");
+ }
+
+ // tulemüür
+ if(!rc && c.kanal!=="lab25"){
+  if(c.ufw){S("fw","i","TCP SYN 10.0.XXX.100 → 10.0.XXX.30:587","act");S("fw","s e","(vastust ei tule – ufw viskab paketi ära)","bad");
+   END("bad","Thunderbird: „Ühendus serveriga aegus“. Port 587 pole tulemüüris lubatud: <code>sudo ufw allow 587/tcp</code>. Roundcube'i see ei mõjuta, sest tema ühendub samas masinas.");return;}
+  if(c.ban){S("fw","i","TCP SYN 10.0.XXX.100 → 10.0.XXX.30:587","act");S("fw","s e","REJECT (fail2ban: f2b-postfix-sasl)","bad");
+   steps.push({log:"(/var/log/fail2ban.log) fail2ban.actions [..]: NOTICE  [postfix-sasl] Ban 10.0.XXX.100"});
+   END("bad","Windowsi IP on blokeeritud, sest varem tuli sealt liiga palju valesid paroole. <code>sudo fail2ban-client set postfix-sasl unbanip 10.0.XXX.100</code>.");return;}
+ }
+ S("fw","i",rc?"Roundcube ühendub samas masinas – tulemüür ei puutu.":"Port "+(c.kanal==="lab25"?"25":"587")+" on lubatud.","ok");
+
+ L(`${svc}[4211]: connect from ${cname}[${cip}]`);
+ S("smtpd","s","220 mail.perenimi.local ESMTP","act");
+ S("smtpd","c","EHLO "+helo,"act");
+ if(c.kanal==="lab25"){
+  S("smtpd","s","250-mail.perenimi.local\n250-PIPELINING\n250-SIZE 26214400\n250-STARTTLS\n250-ENHANCEDSTATUSCODES\n250 CHUNKING","act");
+  S("smtpd","i","Pordil 25 AUTH-i ei pakuta (smtpd_sasl_auth_enable = no).","ok");
+ } else if(c.kanal==="tbplain"){
+  S("smtpd","s","250-mail.perenimi.local\n250-PIPELINING\n250-SIZE 26214400\n250-STARTTLS\n250 CHUNKING","act");
+  S("smtpd","i","AUTH-i pole nimekirjas – seda pakutakse alles pärast STARTTLS-i (smtpd_tls_auth_only).","warn");
+  S("smtpd","c","MAIL FROM:<"+c.from+">","act");
+  S("smtpd","s e","530 5.7.0 Must issue a STARTTLS command first","bad");
+  L(`${svc}[4211]: disconnect from unknown[${cip}] ehlo=1 mail=0/1 quit=1 commands=2/3`);
+  END("bad","Krüptimata ühendusel ei luba port 587 midagi saata (<code>smtpd_tls_security_level=encrypt</code>). Thunderbirdis vali turvalisuseks STARTTLS. Nii ei liigu parool kunagi avatekstina.");return;
+ } else {
+  S("smtpd","s","250-mail.perenimi.local\n250-PIPELINING\n250-SIZE 26214400\n250-STARTTLS\n250 CHUNKING","act");
+  S("smtpd","c","STARTTLS","act");
+  S("smtpd","s","220 2.0.0 Ready to start TLS","act");
+  S("smtpd","i","— TLS kätlus; klient kontrollib serti (mail.perenimi.local, Perenimi Labori CA) —","ok");
+  L(`${svc}[4211]: Anonymous TLS connection established from ${cname}[${cip}]: TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)`);
+  S("smtpd","c","EHLO "+helo,"act");
+  S("smtpd","s","250-mail.perenimi.local\n250-PIPELINING\n250-SIZE 26214400\n250-AUTH PLAIN LOGIN\n250 CHUNKING","ok");
+  S("auth","c","AUTH PLAIN "+btoa("\0"+c.login+"\0parool").slice(0,12)+"…","act");
+  if(c.dovecot){
+   L(`${svc}[4211]: warning: SASL: Connect to private/auth failed: No such file or directory`,1);
+   L(`${svc}[4211]: fatal: no SASL authentication mechanisms`,1);
+   S("auth","s e","(ühendus katkeb – smtpd protsess lõpetab töö)","bad");
+   END("bad","Postfix ei saa parooli kontrollida, sest Dovecoti auth sokkel <code>/var/spool/postfix/private/auth</code> puudub. Kui Dovecot on maas, ei tööta ka kirjade saatmine – mitte ainult lugemine.");return;
+  }
+  if(c.pw==="bad"){
+   L(`${svc}[4211]: warning: unknown[${cip}]: SASL PLAIN authentication failed: (reason unavailable), sasl_username=${c.login}`,1);
+   S("auth","s e","535 5.7.8 Error: authentication failed: (reason unavailable)","bad");
+   END("bad","Vale parool. fail2ban-i vangla <code>postfix-sasl</code> loeb neid ridu ja blokeerib IP pärast 5 katset.");return;
+  }
+  S("auth","s g","235 2.7.0 Authentication successful","ok");
+ }
+
+ S("rules","c","MAIL FROM:<"+c.from+">","act");
+ if(c.kanal==="lab25" && c.from.endsWith("@pank.ee")){
+  S("rules","s","250 2.1.0 Ok","act");
+ } else S("rules","s","250 2.1.0 Ok","act");
+ S("rules","c","RCPT TO:<"+c.to+">","act");
+ // piirangud RCPT ajal
+ if(auth){
+  if(c.helo && !rc){L(`${svc}[4211]: NOQUEUE: reject: RCPT from unknown[${cip}]: 504 5.5.2 <${helo}>: Helo command rejected: need fully-qualified hostname; from=<${c.from}> to=<${c.to}> proto=ESMTP helo=<${helo}>`,1);
+   S("rules","s e","504 5.5.2 <"+helo+">: Helo command rejected: need fully-qualified hostname","bad");
+   END("bad","Windows tutvustab end lühinimega <code>DESKTOP-AB12</code>. Kui HELO piirang ei alga <code>permit_mynetworks, permit_sasl_authenticated</code>, lükatakse tagasi ka sisseloginud kasutaja (9.5). Roundcube'i see ei mõjuta, sest Ubuntu ütleb HELO-s oma FQDN-i.");return;}
+  const owner=c.from.split("@")[0];
+  if(!c.from.endsWith("@perenimi.local") || owner!==c.login){
+   L(`${svc}[4211]: NOQUEUE: reject: RCPT from unknown[${cip}]: 553 5.7.1 <${c.from}>: Sender address rejected: not owned by user ${c.login}; from=<${c.from}> to=<${c.to}> proto=ESMTP helo=<${helo}>`,1);
+   S("rules","s e","553 5.7.1 <"+c.from+">: Sender address rejected: not owned by user "+c.login,"bad");
+   END("bad","<code>reject_sender_login_mismatch</code>: kasutaja <b>"+c.login+"</b> ei tohi saata aadressilt <b>"+c.from+"</b>. Nii ei saa sisseloginud kasutaja teise nime all kirju saata (9.5, login_maps.regexp).");return;}
+ } else {
+  if(!local){
+   if(c.mynet){S("rules","s e","250 2.1.5 Ok   ⚠ AVATUD RELEE!","warn");
+    S("rules","i","10.0.XXX.10 on mynetworks-is → permit_mynetworks lubab ilma paroolita saata ükskõik kuhu.","warn");}
+   else{L(`postfix/smtpd[4211]: NOQUEUE: reject: RCPT from ${cname}[${cip}]: 554 5.7.1 <${c.to}>: Relay access denied; from=<${c.from}> to=<${c.to}> proto=ESMTP helo=<${helo}>`,1);
+    S("rules","s e","554 5.7.1 <"+c.to+">: Relay access denied","bad");
+    END("ok","<b>Nii peabki olema.</b> Port 25 ilma autentimiseta võtab vastu ainult kirju meie oma domeenile. Võõrasse domeeni saata ei saa – server pole avatud relee (<code>reject_unauth_destination</code>).");return;}
+  } else if(c.from.endsWith("@perenimi.local")||c.from.endsWith("@pank.ee")){
+   S("rules","i",c.from.endsWith("@pank.ee")?"Pordil 25 ei kontrolli meie seadistus sissetuleva kirja SPF-i (vt 10.11) – võltsitud saatja läheb läbi!":"Saaja on meie domeenis → reject_unauth_destination lubab.","warn");
+  }
+ }
+ S("rules","s","250 2.1.5 Ok","ok");
+ S("dkim","c","DATA","act");S("dkim","s","354 End data with <CR><LF>.<CR><LF>","act");
+ S("dkim","c","From: "+c.from+"\nTo: "+c.to+"\nSubject: Tere!\n\nTere, see on testkiri.\n.","act");
+ L(`${svc}[4211]: ${q}: client=${cname}[${cip}]`+(auth?`, sasl_method=PLAIN, sasl_username=${c.login}`:""));
+ L(`postfix/cleanup[4215]: ${q}: message-id=<${Date.now()}@perenimi.local>`);
+ let signed=false;
+ if(c.dkim){L(`postfix/cleanup[4215]: warning: connect to Milter service inet:127.0.0.1:8891: Connection refused`,1);
+  S("dkim","i","OpenDKIM ei vasta → milter_default_action = accept: kiri võetakse vastu ALLKIRJATA.","warn");}
+ else if(auth || c.mynet || c.kanal==="lab25"){
+  if(c.from.endsWith("@perenimi.local")){signed=true;L(`opendkim[812]: ${q}: DKIM-Signature field added (s=s1, d=perenimi.local)`);S("dkim","i","OpenDKIM: saatja on trusted.hosts-is ja domeen signing.table-is → lisab DKIM-Signature: d=perenimi.local; s=s1","ok");}
+  else {L(`opendkim[812]: ${q}: no signing table match for '${c.from}'`);S("dkim","i","Saatja domeeni pole signing.table-is → allkirja ei lisata.","warn");}
+ }
+ S("dkim","s g","250 2.0.0 Ok: queued as "+q,"ok");
+ S("qmgr","c","QUIT","act");S("qmgr","s","221 2.0.0 Bye","act");
+ L(`postfix/qmgr[1022]: ${q}: from=<${c.from}>, size=1282, nrcpt=1 (queue active)`);
+ L(`${svc}[4211]: disconnect from ${cname}[${cip}] ehlo=${auth?2:1}${auth?" starttls=1 auth=1":""} mail=1 rcpt=1 data=1 quit=1`);
+ if(local){
+  S("qmgr","i","jaan@perenimi.local on mydestination-is → local → mailbox_transport = lmtp:unix:private/dovecot-lmtp","ok");
+  if(c.dovecot){L(`postfix/lmtp[4220]: ${q}: to=<${c.to}>, relay=none, delay=0.02, dsn=4.4.1, status=deferred (connect to mail.perenimi.local[private/dovecot-lmtp]: No such file or directory)`,1);
+   S("lmtp","s e","status=deferred – LMTP sokkel puudub","bad");
+   END("warn","Kiri võeti vastu, kuid jääb järjekorda (<code>mailq</code>), sest Dovecot on maas. Postfix proovib uuesti; pärast <code>systemctl start dovecot</code> saab käsuga <code>postqueue -f</code> kohe uuesti proovida.");return;}
+  L(`postfix/local[4219]: ${q}: passing <${c.to}> to transport=lmtp`);
+  L(`postfix/lmtp[4220]: ${q}: to=<${c.to}>, relay=mail.perenimi.local[private/dovecot-lmtp], delay=0.1, dsn=2.0.0, status=sent (250 2.0.0 <${c.to}> Saved)`);
+  L(`postfix/qmgr[1022]: ${q}: removed`);
+  S("lmtp","s g","250 2.0.0 <"+c.to+"> Saved → /home/jaan/Maildir/new/","ok");
+  S("dest","i","Jaan näeb kirja Roundcube'is (IMAP 993).","ok");
+  let msg="Kiri jõudis kohale.";
+  if(c.from.endsWith("@pank.ee"))msg+=" <b>Aga:</b> võltsitud saatja <code>direktor@pank.ee</code> pääses läbi, sest sissetulevate kirjade SPF/DMARC kontrolli pole (10.11). Päris serveris lükkaks DMARC selle tagasi.";
+  if(c.mynet&&c.kanal==="lab25")msg+=" Pane tähele: kiri läks läbi ilma paroolita, sest kogu labori võrk on mynetworks-is.";
+  if(c.dkim)msg+=" Kirjal puudub DKIM-allkiri (OpenDKIM oli maas).";
+  END(c.from.endsWith("@pank.ee")||c.dkim||c.mynet?"warn":"ok",msg);
+  authTable=null;return;
+ }
+ // väline
+ S("qmgr","i","gmail.com ei ole mydestination-is → relayhost = [smtp.gmail.com]:587","ok");
+ S("relay","i","smtp_generic_maps: "+c.from+" → labor.perenimi@gmail.com","ok");
+ if(c.sasl){L(`postfix/smtp[4230]: warning: SASL authentication failure: No worthy mechs found`,1);
+  L(`postfix/smtp[4230]: ${q}: to=<${c.to}>, relay=smtp.gmail.com[142.250.74.108]:587, delay=0.9, dsn=4.7.0, status=deferred (SASL authentication failed; cannot authenticate to server smtp.gmail.com[142.250.74.108]: no mechanism available)`,1);
+  S("relay","s e","status=deferred – no mechanism available","bad");
+  END("warn","Postfixil pole SASL-kliendi mooduleid (PLAIN/LOGIN), seega ei saa ta relay'sse sisse logida. <code>sudo apt install libsasl2-modules</code>, siis <code>postqueue -f</code> (12.4).");return;}
+ if(c.relaypw){L(`postfix/smtp[4230]: ${q}: to=<${c.to}>, relay=smtp.gmail.com[142.250.74.108]:587, delay=1.2, dsn=4.7.8, status=deferred (SASL authentication failed; server smtp.gmail.com[142.250.74.108] said: 535-5.7.8 Username and Password not accepted.)`,1);
+  S("relay","s e","535-5.7.8 Username and Password not accepted","bad");
+  END("warn","Relay lükkas parooli tagasi. Gmail vajab <b>rakenduse parooli</b>. Paranda <code>/etc/postfix/sasl_passwd</code> ja käivita <code>sudo postmap /etc/postfix/sasl_passwd</code> – ilma postmap'ita jääb kehtima vana parool.");return;}
+ S("relay","c","EHLO mail.perenimi.local · STARTTLS · AUTH PLAIN …","act");
+ S("relay","s g","235 2.7.0 Accepted · 250 2.0.0 OK","ok");
+ L(`postfix/smtp[4230]: ${q}: to=<${c.to}>, relay=smtp.gmail.com[142.250.74.108]:587, delay=1.4, delays=0.1/0/0.6/0.7, dsn=2.0.0, status=sent (250 2.0.0 OK  1794477370 a640c23a62f3a-ab1234 - gsmtp)`);
+ L(`postfix/qmgr[1022]: ${q}: removed`);
+ S("dest","i","Gmail toimetab kirja adressaadile. From: labor.perenimi@gmail.com","ok");
+ authTable=[["SPF","pass","gmail.com lubab IP-d, millelt relay saatis"],["DKIM d=gmail.com","pass","relay allkirjastas kirja oma võtmega"],["DKIM d=perenimi.local",signed?"fail":"–",signed?"From: muudeti pärast allkirjastamist (generic map) ja perenimi.local pole avalikus DNS-is":"allkirja polnud"],["DMARC (gmail.com)","pass","SPF ja DKIM domeen ühtivad From: domeeniga"]];
+ let m="Kiri jõudis internetti relay kaudu. Saaja näeb saatjana relay konto aadressi.";
+ if(c.mynet&&c.kanal==="lab25")m="⚠ Kiri läks internetti <b>ilma paroolita</b> – server on labori võrgule avatud relee! Iga nakatunud masin laboris saaks nüüd spämmi saata sinu relay konto nimel. Paranda: <code>mynetworks = 127.0.0.0/8</code>.";
+ END(c.mynet&&c.kanal==="lab25"?"bad":"ok",m);
+}
+
+function chainRender(){
+ const st={};NODES.forEach(([k])=>st[k]="");
+ const used=new Set(steps.filter(s=>s.node).map(s=>s.node));
+ for(let i=0;i<pos;i++){const s=steps[i];if(s.node)st[s.node]=s.st;}
+ const c=cfg();
+ $("chain").innerHTML=NODES.map(([k,n],i)=>{let cls=st[k]||"";if(!used.has(k))cls="skip";
+  return (i?'<span class="arr">→</span>':'')+`<div class="node ${cls}"><b>${n}</b></div>`;}).join("");
+}
+function render(){
+ const tr=[],lg=[];let end=null;
+ for(let i=0;i<pos;i++){const s=steps[i];
+  if(s.log!==undefined)lg.push(`<div class="${s.w?'w':''}">${esc(s.log)}</div>`);
+  else if(s.end)end=s.end;
+  else{const cls=s.cls.split(" ");const who=cls[0];const pre=who==="c"?"C: ":who==="s"?"S: ":"";
+   tr.push(`<div class="${s.cls}">${esc(pre+s.text).replace(/\n/g,"\n"+(pre?"   ":""))}</div>`);}}
+ $("trans").innerHTML=tr.join("")||'<div class="i">Vestlus algab siit…</div>';
+ $("trans").scrollTop=1e6;
+ $("log").innerHTML=lg.join("")||"(logiridu veel pole)";
+ $("log").scrollTop=1e6;
+ if(end){$("res").className="res "+end.kind;$("res").innerHTML=end.msg;
+  $("authbox").innerHTML=authTable?'<table class="auth"><tr><th>Kontroll saaja juures</th><th>Tulemus</th><th>Miks</th></tr>'+authTable.map(r=>`<tr><td>${r[0]}</td><td class="${r[1]==='pass'?'pass':r[1]==='fail'?'fail':''}">${r[1]}</td><td>${r[2]}</td></tr>`).join("")+"</table>":"";}
+ else{$("res").className="res warn";$("res").textContent=pos?"…":"Vajuta „Järgmine samm“.";$("authbox").innerHTML="";}
+ $("next").disabled=pos>=steps.length;
+ chainRender();
+}
+function esc(s){return String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+function restart(){build(cfg());pos=0;render();}
+$("next").onclick=()=>{if(pos<steps.length){pos++;while(pos<steps.length&&steps[pos-1].log!==undefined)pos++;render();}};
+$("all").onclick=()=>{pos=steps.length;render();};
+$("reset").onclick=restart;
+document.querySelectorAll("select,input").forEach(e=>e.addEventListener("change",restart));
+
+const TASKS=[
+ ["Tavaline kiri: Mari saadab Roundcube'ist Jaanile. Leia logist rida, kus OpenDKIM lisab allkirja.",{kanal:"rc",login:"mari",pw:"ok",from:"mari@perenimi.local",to:"jaan@perenimi.local"},[]],
+ ["Avatud relee test pordil 25. Miks see „ebaõnnestumine“ on hea tulemus?",{kanal:"lab25",from:"jaan@perenimi.local",to:"keegi@gmail.com"},[]],
+ ["Sama test, kuid mynetworks on liiga lai. Mis muutus ja miks see on ohtlik?",{kanal:"lab25",from:"jaan@perenimi.local",to:"keegi@gmail.com"},["mynet"]],
+ ["Jaan logib sisse, aga proovib saata Mari nimel. Milline seade selle peatab?",{kanal:"tb",login:"jaan",pw:"ok",from:"mari@perenimi.local",to:"jaan@perenimi.local"},[]],
+ ["Windowsi Thunderbird ei saa saata, kuigi parool on õige. Leia põhjus.",{kanal:"tb",login:"mari",pw:"ok",from:"mari@perenimi.local",to:"jaan@perenimi.local"},["helo"]],
+ ["Roundcube'i ei saa sisse logida pärast paigaldust. Miks?",{kanal:"rc",login:"mari",pw:"ok",from:"mari@perenimi.local",to:"jaan@perenimi.local"},["rc143"]],
+ ["Dovecot on maas. Mis juhtub Thunderbirdist saatmisel – kas ainult lugemine on katki?",{kanal:"tb",login:"mari",pw:"ok",from:"mari@perenimi.local",to:"jaan@perenimi.local"},["dovecot"]],
+ ["Kiri internetti relay kaudu. Mis on saaja juures From:, SPF, DKIM, DMARC?",{kanal:"rc",login:"mari",pw:"ok",from:"mari@perenimi.local",to:"keegi@gmail.com"},[]],
+ ["Värskelt seadistatud relay: kiri jääb järjekorda. Leia põhjus logist.",{kanal:"rc",login:"mari",pw:"ok",from:"mari@perenimi.local",to:"keegi@gmail.com"},["sasl"]],
+ ["Võõras server toob kirja võltsitud saatjaga direktor@pank.ee. Kas see jõuab Jaanini? Mis aitaks?",{kanal:"lab25",from:"direktor@pank.ee",to:"jaan@perenimi.local"},[]]
+];
+$("tasks").innerHTML=TASKS.map((t,i)=>`<li>${t[0]} <button class="btn" data-t="${i}">Lae</button></li>`).join("");
+document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{const [_,v,f]=TASKS[b.dataset.t];
+ for(const k in v)$(k).value=v[k];
+ document.querySelectorAll(".faults input").forEach(x=>x.checked=f.includes(x.id.slice(2)));
+ restart();window.scrollTo({top:0,behavior:"smooth"});});
+restart();
+</script>
+</body>
+</html>

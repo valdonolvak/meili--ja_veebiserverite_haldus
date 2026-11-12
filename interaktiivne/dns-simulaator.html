@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNS-i simulaator – BIND9 tsoon perenimi.local</title>
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--ink:#1f1e1c;--quiet:#6b6862;--line:#dcd9d2;--acc:#2f6fd6;--acc-t:#e8f0fc;--ok:#2e7d4f;--ok-t:#e5f3ea;--bad:#b3261e;--bad-t:#fbeae8;--warn:#9a6700;--warn-t:#fbf2dc;--mono:ui-monospace,Consolas,"DejaVu Sans Mono",monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b1a;--card:#252524;--ink:#ecebe8;--quiet:#a3a09a;--line:#3a3936;--acc:#7aa7f0;--acc-t:#24324a;--ok:#6cc08b;--ok-t:#1f3326;--bad:#f08a80;--bad-t:#3a2220;--warn:#e0b250;--warn-t:#3a311c}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:20px 24px 8px;max-width:1240px;margin:auto}
+header a{color:var(--acc)}
+h1{font-size:22px;margin:6px 0 4px}
+header p{margin:0;color:var(--quiet);max-width:900px}
+main{max-width:1240px;margin:auto;padding:12px 24px 40px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 10px}
+textarea{width:100%;height:470px;font:13px/1.45 var(--mono);border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg);color:var(--ink);resize:vertical;white-space:pre;tab-size:8}
+input,select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 14px;font:inherit;cursor:pointer}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.row label{font-size:14px;display:flex;gap:6px;align-items:center}
+.out{font:12.8px/1.45 var(--mono);white-space:pre-wrap;word-break:break-all;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:120px}
+.steps{list-style:none;padding:0;margin:0}
+.steps li{border-left:3px solid var(--line);padding:4px 0 4px 10px;margin:4px 0;font-size:14px}
+.steps li.ok{border-color:var(--ok)} .steps li.bad{border-color:var(--bad)} .steps li.warn{border-color:var(--warn)} .steps li.act{border-color:var(--acc)}
+.badge{display:inline-block;font-size:12px;border-radius:6px;padding:1px 7px;margin-left:6px}
+.b-ok{background:var(--ok-t);color:var(--ok)}.b-bad{background:var(--bad-t);color:var(--bad)}.b-warn{background:var(--warn-t);color:var(--warn)}
+.log{font:12.5px/1.45 var(--mono);white-space:pre-wrap;color:var(--quiet);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:160px;overflow:auto}
+.log .w{color:var(--warn)} .log .e{color:var(--bad)}
+.tasks li{margin:6px 0;font-size:14px}
+small{color:var(--quiet)}
+</style>
+</head>
+<body>
+<header>
+<a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
+<h1>DNS-i simulaator</h1>
+<p>Vasakul on Debian2 tsoonifail <code>/etc/bind/zones/db.perenimi.local</code>. Muuda seda, vajuta <b>rndc reload</b> ja küsi nimesid erinevatest masinatest. Simulaator näitab, kes vastas (tsoon, BIND-i vahemälu, edastaja või Windowsi enda vahemälu) ja mida näitaks <code>dig</code>.</p>
+</header>
+<main>
+<section>
+<div class="card">
+<h2>Tsoonifail (Debian2)</h2>
+<textarea id="zone" spellcheck="false"></textarea>
+<div class="row">
+<button class="btn primary" id="reload">sudo rndc reload perenimi.local</button>
+<button class="btn" id="restore">Taasta algne tsoon</button>
+</div>
+</div>
+<div class="card">
+<h2>journalctl -u named</h2>
+<div class="log" id="nlog"></div>
+</div>
+</section>
+<section>
+<div class="card">
+<h2>Päring</h2>
+<div class="row" style="margin-top:0">
+<select id="client">
+<option value="win">Windows klient 10.0.XXX.100</option>
+<option value="deb1">Debian1 10.0.XXX.10</option>
+<option value="out">Väline arvuti 192.0.2.50</option>
+</select>
+<input id="qname" value="mail.perenimi.local" size="26">
+<select id="qtype"><option>A</option><option>MX</option><option>TXT</option><option>CNAME</option><option>NS</option><option>SOA</option><option>PTR</option></select>
+<button class="btn primary" id="ask">Küsi</button>
+</div>
+<div class="row">
+<label><input type="checkbox" id="down"> named on peatatud</label>
+<label><input type="checkbox" id="fwd"> edastajad ei vasta</label>
+</div>
+<div class="row">
+<button class="btn" id="flush">Windows: ipconfig /flushdns</button>
+<button class="btn" id="time">⏩ +10 min aega</button>
+<span id="clock" style="font-size:13px;color:var(--quiet)"></span>
+</div>
+</div>
+<div class="card">
+<h2>Kes vastas?</h2>
+<ul class="steps" id="steps"><li>Tee päring.</li></ul>
+</div>
+<div class="card">
+<h2>dig väljund</h2>
+<div class="out" id="out"></div>
+</div>
+<div class="card">
+<h2>Ülesanded</h2>
+<ol class="tasks">
+<li>Küsi Windowsist <code>wp.perenimi.local</code> tüübiga A. Miks vastuses on kaks rida?</li>
+<li>Küsi <code>debian.org</code> kaks korda järjest. Mis erineb teisel korral? Lülita sisse „edastajad ei vasta“ ja küsi uuesti – miks vastus ikka tuleb? Mis juhtub <code>wordpress.org</code>-iga?</li>
+<li>Küsi väliselt arvutilt <code>mail.perenimi.local</code>. Miks REFUSED? Milline <code>named.conf.options</code> rida seda teeb?</li>
+<li>Küsi Windowsist <code>www.perenimi.local</code>. Muuda tsoonis <code>www</code> IP-ks <code>10.0.XXX.99</code>, <b>ära muuda seerianumbrit</b>, tee reload. Mida näitab named-i logi? Mida vastab Debian1 ja mida Windows? Miks? Mis aitab?</li>
+<li>Kustuta MX-kirjes <code>mail.perenimi.local.</code> lõpust punkt ja tee reload. Küsi <code>perenimi.local MX</code>. Mis nimi tuli? Kuhu läheks e-post?</li>
+<li>Lisa rida <code>www IN CNAME debian1</code> (www A-kirje jääb alles) ja tee reload. Mis juhtub kogu tsooniga?</li>
+<li>Kirjuta mõnes A-kirjes IP valesti (nt <code>10.0.XXX.300</code>) ja tee reload. Mida küsib nüüd Windows <code>mail.perenimi.local</code> kohta?</li>
+<li>Küsi <code>s1._domainkey.perenimi.local</code> TXT ja <code>_dmarc.perenimi.local</code> TXT. Milleks neid vaja on (peatükk 10)?</li>
+</ol>
+</div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const ZONE0=`$TTL 3600
+$ORIGIN perenimi.local.
+@       IN  SOA ns1.perenimi.local. admin.perenimi.local. (
+                2026111201 ; Serial  AAAAKKPPNN
+                3600       ; Refresh
+                900        ; Retry
+                604800     ; Expire
+                300 )      ; Negative cache TTL
+
+; --- Nimeserver ---
+@       IN  NS      ns1.perenimi.local.
+
+; --- Masinad ---
+ns1     IN  A       10.0.XXX.20
+debian1 IN  A       10.0.XXX.10
+debian2 IN  A       10.0.XXX.20
+ubuntu  IN  A       10.0.XXX.30
+
+; --- Veebisaidid (Debian1) ---
+@       IN  A       10.0.XXX.10
+www     IN  A       10.0.XXX.10
+wp      IN  CNAME   debian1
+blogi   IN  CNAME   debian1
+
+; --- Andmebaas (Debian2) ---
+db      IN  CNAME   debian2
+
+; --- E-post (Ubuntu) ---
+mail    IN  A       10.0.XXX.30
+@       IN  MX  10  mail.perenimi.local.
+
+; --- E-posti autentimine ---
+@       IN  TXT     "v=spf1 mx -all"
+_dmarc  IN  TXT     "v=DMARC1; p=quarantine; adkim=s; aspf=s; rua=mailto:postmaster@perenimi.local"
+s1._domainkey IN TXT ( "v=DKIM1; h=sha256; k=rsa; "
+          "p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4zIiLkO5uGrcHua5/pulk4HADyE4" )
+`;
+const EXT={"debian.org.":{A:["151.101.2.132","151.101.66.132"],ttl:300},"gmail.com.":{MX:["5 gmail-smtp-in.l.google.com."],A:["142.250.74.37"],ttl:300},
+ "smtp.gmail.com.":{A:["142.250.74.108"],ttl:300},"google.com.":{A:["142.250.74.46"],ttl:300}};
+const PTR={"10":"debian1.perenimi.local.","20":"debian2.perenimi.local.","30":"mail.perenimi.local."};
+let loaded=null,loadedText=null,loadedSerial=null,now=0,bindCache={},winCache={};
+const logs=[];
+function nlog(t,c){const d=new Date(Date.UTC(2026,10,12,9,0,0)+now*1000);logs.push(`<div class="${c||''}">${d.toISOString().slice(11,19)} named[611]: ${esc(t)}</div>`);$("nlog").innerHTML=logs.join("");$("nlog").scrollTop=1e6;}
+function esc(s){return String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+
+// ---- tsoonifaili parser ----
+function tokenize(text){
+ const recs=[];let toks=[],depth=0,lineStartsWs=false,startLine=1,ln=1,i=0,cur="",inq=false,atStart=true;
+ const push=()=>{if(cur!==""||inq){toks.push(cur);}cur="";};
+ const endRec=()=>{if(toks.length)recs.push({toks,ws:lineStartsWs,line:startLine});toks=[];};
+ while(i<text.length){const ch=text[i];
+  if(inq){if(ch==='"'){toks.push({q:cur});cur="";inq=false;}else cur+=ch;i++;continue;}
+  if(atStart){lineStartsWs=(ch===" "||ch==="\t");atStart=false;startLine=ln;}
+  if(ch==='"'){push();inq=true;i++;continue;}
+  if(ch===';'){while(i<text.length&&text[i]!=="\n")i++;continue;}
+  if(ch==='('){push();depth++;i++;continue;}
+  if(ch===')'){push();depth=Math.max(0,depth-1);i++;continue;}
+  if(ch==="\n"){push();ln++;i++;if(depth===0){endRec();atStart=true;}continue;}
+  if(ch===" "||ch==="\t"){push();i++;continue;}
+  cur+=ch;i++;}
+ push();endRec();return recs;
+}
+const TYPES=["SOA","NS","A","AAAA","CNAME","MX","TXT","PTR","SRV"];
+function parseZone(text){
+ const errs=[],rr=[];let origin="perenimi.local.",ttl=3600,owner=null;
+ const abs=n=>n==="@"?origin:(n.endsWith(".")?n.toLowerCase():(n+"."+origin).toLowerCase());
+ for(const r of tokenize(text)){let t=r.toks.slice();
+  if(typeof t[0]==="string"&&t[0].startsWith("$")){const d=t[0].toUpperCase();if(d==="$TTL")ttl=parseInt(t[1]);else if(d==="$ORIGIN")origin=abs(t[1]);continue;}
+  let name;
+  if(r.ws){name=owner;}else{name=abs(t.shift());owner=name;}
+  if(!name){errs.push(`line ${r.line}: no current owner name`);continue;}
+  let rttl=ttl;
+  if(typeof t[0]==="string"&&/^\d+$/.test(t[0]))rttl=parseInt(t.shift());
+  if(typeof t[0]==="string"&&t[0].toUpperCase()==="IN")t.shift();
+  if(typeof t[0]==="string"&&/^\d+$/.test(t[0]))rttl=parseInt(t.shift());
+  const type=(typeof t[0]==="string"?t.shift():"").toUpperCase();
+  if(!TYPES.includes(type)){errs.push(`line ${r.line}: unknown RR type '${type}'`);continue;}
+  let data;
+  if(type==="A"){const ip=t[0];if(!/^(\d{1,3}|XXX)(\.(\d{1,3}|XXX)){3}$/.test(ip||"")||ip.split(".").some(o=>o!=="XXX"&&+o>255)){errs.push(`line ${r.line}: bad dotted quad`);continue;}data=ip;}
+  else if(type==="CNAME"||type==="NS"||type==="PTR"){if(!t[0]){errs.push(`line ${r.line}: missing ${type} target`);continue;}data=abs(t[0]);}
+  else if(type==="MX"){if(!/^\d+$/.test(t[0]||"")||!t[1]){errs.push(`line ${r.line}: bad MX record`);continue;}data=t[0]+" "+abs(t[1]);}
+  else if(type==="TXT"){if(!t.length||t.some(x=>typeof x!=="object")){errs.push(`line ${r.line}: TXT must be quoted`);continue;}data=t.map(x=>'"'+x.q+'"').join(" ");}
+  else if(type==="SOA"){if(t.length<7){errs.push(`line ${r.line}: bad SOA record`);continue;}data=abs(t[0])+" "+abs(t[1])+" "+t.slice(2).join(" ");}
+  else data=t.join(" ");
+  rr.push({name,ttl:rttl,type,data,line:r.line});}
+ const soa=rr.find(x=>x.type==="SOA");
+ if(!soa)errs.push("has no SOA record");
+ if(!rr.some(x=>x.type==="NS"&&x.name===origin))errs.push("has no NS records");
+ const names={};rr.forEach(x=>{(names[x.name]=names[x.name]||[]).push(x.type)});
+ for(const n in names)if(names[n].includes("CNAME")&&names[n].length>1)errs.push(`${n.slice(0,-1)}: CNAME and other data`);
+ for(const x of rr){if(x.type==="MX"||x.type==="NS"){const tgt=x.data.split(" ").pop();if(tgt.endsWith(origin)&&names[tgt]&&names[tgt].includes("CNAME"))errs.push(`${x.name.slice(0,-1)}/${x.type} '${tgt.slice(0,-1)}' is a CNAME (illegal)`);
+   if(tgt.endsWith(origin)&&!names[tgt])nlog(`zone perenimi.local/IN: ${x.name.slice(0,-1)}/${x.type} '${tgt.slice(0,-1)}' has no address records (A or AAAA)`,"w");}}
+ return {rr,errs,serial:soa?parseInt(soa.data.split(" ")[2]):null,origin};
+}
+function reload(){
+ const text=$("zone").value;const z=parseZone(text);
+ if(z.errs.length){z.errs.forEach(e=>nlog("dns_master_load: db.perenimi.local:"+e,"e"));nlog("zone perenimi.local/IN: not loaded due to errors.","e");
+  nlog("reloading zones failed: failure","e");loaded=null;return;}
+ if(loaded&&loadedText!==text&&z.serial===loadedSerial)nlog(`zone perenimi.local/IN: zone serial (${z.serial}) unchanged. zone may fail to transfer to slaves.`,"w");
+ if(loaded&&z.serial<loadedSerial)nlog(`zone perenimi.local/IN: zone serial (${z.serial}) has gone backwards`,"w");
+ nlog(`zone perenimi.local/IN: loaded serial ${z.serial}`);
+ loaded=z;loadedText=text;loadedSerial=z.serial;
+}
+function inZone(n){return n==="perenimi.local."||n.endsWith(".perenimi.local.");}
+function lookupZone(name,type,ans,depth=0){
+ const rrs=loaded.rr.filter(r=>r.name===name);
+ if(!rrs.length)return ans.length?"NOERROR":"NXDOMAIN";
+ const exact=rrs.filter(r=>r.type===type);
+ if(exact.length){ans.push(...exact);return "NOERROR";}
+ const cn=rrs.find(r=>r.type==="CNAME");
+ if(cn&&type!=="CNAME"){ans.push(cn);if(depth<8&&inZone(cn.data))return lookupZone(cn.data,type,ans,depth+1);return "NOERROR";}
+ return "NOERROR";
+}
+function fmt(r){return `${r.name}\t${r.ttl}\tIN\t${r.type}\t${r.data}`;}
+function ask(){
+ let qn=$("qname").value.trim().toLowerCase();const qt=$("qtype").value;const cl=$("client").value;
+ const S=[],add=(c,t)=>S.push(`<li class="${c}">${t}</li>`);
+ let qname=qn;
+ if(qt==="PTR"&&/^10\.0\.(xxx|\d+)\.\d+$/.test(qn)){const o=qn.split(".");qname=`${o[3]}.${o[2]}.0.10.in-addr.arpa`;add("act",`Pöördpäring: ${qn} → <code>${qname}</code>`);}
+ if(!qname.endsWith("."))qname+=".";
+ const key=qname+"|"+qt;
+ const server="10.0.XXX.20";
+ let out=`; <<>> DiG 9.20 <<>> @${server} ${qname.slice(0,-1)} ${qt}\n`;
+ // Windowsi vahemälu
+ if(cl==="win"&&winCache[key]&&winCache[key].exp>now){const e=winCache[key];
+  add("warn",`<b>Windowsi DNS Client vahemälu</b> – vastus on meeles veel ${e.exp-now} s. Serverilt ei küsitudki! <span class="badge b-warn">vahemälu</span>`);
+  $("steps").innerHTML=S.join("");$("out").textContent="(Windows vastas oma vahemälust – vaata ipconfig /displaydns)\n\n"+e.lines.join("\n");return;}
+ if(cl==="win")add("ok","Windowsi vahemälus seda pole → küsitakse DNS-serverilt 10.0.XXX.20.");
+ if($("down").checked){add("bad","UDP 53 → 10.0.XXX.20: vastust ei tule (named ei tööta). <span class='badge b-bad'>timeout</span>");
+  $("steps").innerHTML=S.join("");$("out").textContent=out+";; communications error to 10.0.XXX.20#53: timed out\n;; no servers could be reached";return;}
+ if(cl==="out"){add("bad","Päringu allikas 192.0.2.50 ei kuulu ACL-i <code>labor</code> → allow-query keelab. <span class='badge b-bad'>REFUSED</span>");
+  nlog(`client @0x7f 192.0.2.50#53211 (${qname.slice(0,-1)}): query (cache) '${qname.slice(0,-1)}/${qt}/IN' denied (allow-query-cache did not match)`,"w");
+  $("steps").innerHTML=S.join("");$("out").textContent=out+";; ->>HEADER<<- opcode: QUERY, status: REFUSED\n;; flags: qr rd; QUERY: 1, ANSWER: 0\n;; WARNING: recursion requested but not available";return;}
+ add("ok","Päring tuleb labori võrgust → ACL <code>labor</code> lubab.");
+ let status,ans=[],aa=false,ra=true,cacheNote="";
+ if(qname.endsWith(".in-addr.arpa.")){aa=true;add("act","BIND on autoriteetne pöördtsoonile <code>XXX.0.10.in-addr.arpa</code>.");
+  const last=qname.split(".")[0];if(qt==="PTR"&&PTR[last]){ans=[{name:qname,ttl:3600,type:"PTR",data:PTR[last]}];status="NOERROR";}else status=PTR[last]?"NOERROR":"NXDOMAIN";}
+ else if(inZone(qname)){aa=true;
+  if(!loaded){add("bad","Tsoon <code>perenimi.local</code> pole laetud (vigane tsoonifail) → BIND ei saa vastata. <span class='badge b-bad'>SERVFAIL</span>");
+   $("steps").innerHTML=S.join("");$("out").textContent=out+";; ->>HEADER<<- opcode: QUERY, status: SERVFAIL\n;; flags: qr rd ra; QUERY: 1, ANSWER: 0";return;}
+  add("act",`BIND on <b>autoriteetne</b> tsoonile <code>perenimi.local</code> → vastus tsoonifailist (serial ${loaded.serial}). <span class="badge b-ok">aa</span>`);
+  status=lookupZone(qname,qt,ans);
+  if(ans.some(r=>r.type==="CNAME"))add("ok","Nimi on CNAME (varjunimi) → BIND järgib seda ja lisab sihtnime kirje samasse vastusesse.");
+  if(status==="NXDOMAIN")add("warn","Sellist nime tsoonis pole → NXDOMAIN (aa).");
+  else if(!ans.length)add("warn","Nimi on olemas, aga seda tüüpi kirjet pole → NOERROR, vastus tühi (NODATA).");
+  ans.filter(r=>r.type==="MX").forEach(r=>{const t=r.data.split(" ")[1];if(t.endsWith(".perenimi.local.perenimi.local."))add("bad",`MX osutab nimele <code>${t}</code> – tsoonifailis puudus lõpupunkt ja lisati $ORIGIN. Seda nime pole olemas → e-post ei jõua kohale!`);});
+ } else {
+  const c=bindCache[key];
+  if(c&&c.exp>now){add("ok",`BIND-i <b>vahemälu</b>: vastus on meeles veel ${c.exp-now} s → edastajalt ei küsita. <span class="badge b-ok">0 ms</span>`);ans=c.ans.map(r=>({...r,ttl:c.exp-now}));status=c.status;cacheNote=";; Query time: 0 msec";}
+  else{
+   add("act","Nimi pole BIND-i oma tsoonis ega vahemälus → <b>forward only</b> → küsib edastajalt (1.1.1.1).");
+   if($("fwd").checked){add("bad","Edastaja ei vasta (võrk/tulemüür, DNSSEC). <span class='badge b-bad'>SERVFAIL</span>");
+    nlog(`timed out resolving '${qname.slice(0,-1)}/${qt}/IN': 1.1.1.1#53`,"w");
+    $("steps").innerHTML=S.join("");$("out").textContent=out+";; ->>HEADER<<- opcode: QUERY, status: SERVFAIL\n;; flags: qr rd ra; QUERY: 1, ANSWER: 0";return;}
+   const e=EXT[qname];
+   if(e&&e[qt]){ans=e[qt].map(d=>({name:qname,ttl:e.ttl,type:qt,data:d}));status="NOERROR";}else status=e?"NOERROR":"NXDOMAIN";
+   bindCache[key]={ans,status,exp:now+(e?e.ttl:300)};
+   add("ok",`Edastaja vastas (${status}). BIND salvestab vastuse vahemällu ${e?e.ttl:300} sekundiks (TTL). <span class="badge b-warn">35 ms</span>`);cacheNote=";; Query time: 35 msec";
+  }
+ }
+ const lines=ans.map(fmt);
+ out+=`;; ->>HEADER<<- opcode: QUERY, status: ${status}\n;; flags: qr${aa?" aa":""} rd${ra?" ra":""}; QUERY: 1, ANSWER: ${ans.length}\n\n;; QUESTION SECTION:\n;${qname}\t\tIN\t${qt}\n`;
+ if(lines.length)out+="\n;; ANSWER SECTION:\n"+lines.join("\n")+"\n";
+ out+="\n"+(cacheNote||";; Query time: 1 msec")+"\n;; SERVER: 10.0.XXX.20#53(10.0.XXX.20) (UDP)";
+ if(cl==="win"&&status==="NOERROR"&&ans.length){const ttl=Math.min(...ans.map(r=>r.ttl));winCache[key]={exp:now+ttl,lines};add("act",`Windows salvestab vastuse oma vahemällu ${ttl} sekundiks.`);}
+ $("steps").innerHTML=S.join("");$("out").textContent=out;
+}
+function clock(){$("clock").textContent=`simuleeritud aeg: +${Math.floor(now/60)} min`;}
+$("zone").value=ZONE0;reload();clock();
+$("reload").onclick=reload;
+$("restore").onclick=()=>{$("zone").value=ZONE0;nlog("(tsoonifail taastatud – tee reload)");};
+$("ask").onclick=ask;$("qname").addEventListener("keydown",e=>{if(e.key==="Enter")ask();});
+$("flush").onclick=()=>{winCache={};$("steps").innerHTML='<li class="ok">Windows: „Successfully flushed the DNS Resolver Cache.“</li>';};
+$("time").onclick=()=>{now+=600;clock();};
+</script>
+</body>
+</html>
