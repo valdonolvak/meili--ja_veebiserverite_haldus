@@ -61,14 +61,20 @@ small{color:var(--quiet)}
 <div class="tn">domain</div><table class="t" id="t_domain"></table>
 <div class="tn">mailbox <small>(parool näidatud avatekstina ainult simulaatoris – päriselt on seal räsi {SHA512-CRYPT}$6$…)</small></div><table class="t" id="t_mailbox"></table>
 <div class="tn">alias <small>(goto: mitu aadressi komaga)</small></div><table class="t" id="t_alias"></table>
+<div class="row" style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px">
+<b style="font-size:13.5px">Uus postkast (nagu PostfixAdmin):</b>
+<input class="in" id="nm_local" value="kati" style="min-width:90px;width:110px">@<select id="nm_dom" class="in" style="min-width:150px"></select>
+<input class="in" id="nm_pw" value="Uus.Parool.26" style="min-width:120px;width:140px">
+<button class="btn s primary" id="addm">Lisa postkast</button>
+<span id="nm_msg" style="font-size:13px"></span>
+</div>
 <div class="row">
-<button class="btn s" id="addm">+ postkast (veebiliides)</button>
 <button class="btn s" id="adda">+ alias</button>
 <button class="btn s" id="addd">+ domeen</button>
 <button class="btn s" id="sqljaan" title="UPDATE mailbox SET active=0 WHERE username='jaan@perenimi.local'">SQL: jaan välja ainult mailbox-tabelis</button>
 <button class="btn s" id="reset">Algseis</button>
 </div>
-<p style="font-size:13.5px;color:var(--quiet);margin:6px 0 0">Nupp „+ postkast“ teeb sama mis PostfixAdmin: lisab rea tabelisse <code>mailbox</code> ja aliase iseendale. Linnuke „active“ postkasti real muudab nii postkasti kui ka selle aliase – nagu veebiliides. Aliase tabelis saad muuta ainult aliast – nagu otse SQL-iga.</p>
+<p style="font-size:13.5px;color:var(--quiet);margin:6px 0 0">Tabelite muutmise järel arvutatakse tulemus paremal kohe uuesti. „Lisa postkast“ teeb sama mis PostfixAdmin: lisab rea tabelisse <code>mailbox</code> ja aliase iseendale. Linnuke „active“ postkasti real muudab nii postkasti kui ka selle aliase – nagu veebiliides. Aliase tabelis saad muuta ainult aliast – nagu otse SQL-iga.</p>
 </div>
 <div class="card opt">
 <h2>Serveri seadistus (rikked)</h2>
@@ -97,6 +103,7 @@ small{color:var(--quiet)}
 </section>
 </main>
 <script>
+window.addEventListener("error",e=>{const r=document.getElementById("res");if(r)r.innerHTML=`<div class="res bad">JavaScripti viga: ${e.message} (rida ${e.lineno}). Palun anna sellest teada.</div>`;});
 const $=id=>document.getElementById(id);
 let mode="rcpt";
 const INIT={domain:[["perenimi.local",1],["pood.perenimi.local",1]],
@@ -110,21 +117,25 @@ function draw(){
  $("t_domain").innerHTML="<tr><th>domain</th><th>active</th><th></th></tr>"+DB.domain.map((r,i)=>`<tr class="${r[1]?"":"off"}"><td><input type=text data-t=domain data-i=${i} data-c=0 value="${esc(r[0])}"></td><td><input type=checkbox data-t=domain data-i=${i} data-c=1 ${r[1]?"checked":""}></td><td><button class="x" data-del="domain" data-i=${i}>✕</button></td></tr>`).join("");
  $("t_mailbox").innerHTML="<tr><th>username</th><th>password</th><th>maildir</th><th>active</th><th></th></tr>"+DB.mailbox.map((r,i)=>`<tr class="${r[3]?"":"off"}"><td><input type=text data-t=mailbox data-i=${i} data-c=0 value="${esc(r[0])}"></td><td><input type=text data-t=mailbox data-i=${i} data-c=1 value="${esc(r[1])}"></td><td><input type=text data-t=mailbox data-i=${i} data-c=2 value="${esc(r[2])}"></td><td><input type=checkbox data-t=mailbox data-i=${i} data-c=3 ${r[3]?"checked":""}></td><td><button class="x" data-del="mailbox" data-i=${i}>✕</button></td></tr>`).join("");
  $("t_alias").innerHTML="<tr><th>address</th><th>goto</th><th>active</th><th></th></tr>"+DB.alias.map((r,i)=>`<tr class="${r[2]?"":"off"}"><td><input type=text data-t=alias data-i=${i} data-c=0 value="${esc(r[0])}"></td><td><input type=text data-t=alias data-i=${i} data-c=1 value="${esc(r[1])}"></td><td><input type=checkbox data-t=alias data-i=${i} data-c=2 ${r[2]?"checked":""}></td><td><button class="x" data-del="alias" data-i=${i}>✕</button></td></tr>`).join("");
+ const cur=$("nm_dom").value;$("nm_dom").innerHTML=DB.domain.map(r=>`<option${r[0]===cur?" selected":""}>${esc(r[0])}</option>`).join("");
  document.querySelectorAll("table.t input").forEach(e=>e.onchange=()=>{const t=e.dataset.t,i=+e.dataset.i,c=+e.dataset.c;
   const v=e.type==="checkbox"?(e.checked?1:0):e.value.trim();
   if(t==="mailbox"&&c===3){const u=DB.mailbox[i][0];DB.alias.forEach(a=>{if(a[0]===u)a[2]=v;});}  // nagu veebiliides
   if(t==="mailbox"&&c===0){const old=DB.mailbox[i][0];DB.alias.forEach(a=>{if(a[0]===old){a[0]=v;a[1]=a[1]===old?v:a[1];}});}
-  DB[t][i][c]=v;draw();});
+  DB[t][i][c]=v;draw();rerun();});
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const t=b.dataset.del,i=+b.dataset.i;
-  if(t==="mailbox"){const u=DB.mailbox[i][0];DB.alias=DB.alias.filter(a=>a[0]!==u);}DB[t].splice(i,1);draw();});
+  if(t==="mailbox"){const u=DB.mailbox[i][0];DB.alias=DB.alias.filter(a=>a[0]!==u);}DB[t].splice(i,1);draw();rerun();});
 }
-$("addm").onclick=()=>{const u=prompt("Uue postkasti aadress","kati@perenimi.local");if(!u||!u.includes("@"))return;const [l,d]=u.toLowerCase().split("@");
- if(!DB.domain.some(r=>r[0]===d)){alert("Domeeni "+d+" pole tabelis domain – PostfixAdmin ei lase sellesse postkasti luua.");return;}
- DB.mailbox.push([u.toLowerCase(),"Uus.Parool.26",d+"/"+l+"/",1]);DB.alias.push([u.toLowerCase(),u.toLowerCase(),1]);draw();};
-$("adda").onclick=()=>{DB.alias.push(["uus@perenimi.local","mari@perenimi.local",1]);draw();};
-$("addd").onclick=()=>{DB.domain.push(["uus.perenimi.local",1]);draw();};
-$("reset").onclick=reset;
-$("sqljaan").onclick=()=>{const r=DB.mailbox.find(x=>x[0]==="jaan@perenimi.local");if(r)r[3]=0;draw();};
+$("addm").onclick=()=>{const l=$("nm_local").value.trim().toLowerCase(),d=$("nm_dom").value,pw=$("nm_pw").value;const u=l+"@"+d;
+ const msg=(t,c)=>{$("nm_msg").innerHTML=`<span style="color:var(--${c})">${t}</span>`;};
+ if(!/^[a-z0-9._-]+$/.test(l)){msg("Vigane kasutajanimi.","bad");return;}
+ if(!d){msg("Lisa enne domeen.","bad");return;}
+ if(DB.mailbox.some(r=>r[0]===u)){msg(u+" on juba olemas.","bad");return;}
+ DB.mailbox.push([u,pw,d+"/"+l+"/",1]);DB.alias.push([u,u,1]);draw();msg("✓ Lisatud "+u+" (rida tabelisse mailbox + alias iseendale)","ok");};
+$("adda").onclick=()=>{DB.alias.push(["uus@perenimi.local","mari@perenimi.local",1]);draw();rerun();};
+$("addd").onclick=()=>{DB.domain.push(["uus.perenimi.local",1]);draw();rerun();};
+$("reset").onclick=()=>{reset();rerun();};
+$("sqljaan").onclick=()=>{const r=DB.mailbox.find(x=>x[0]==="jaan@perenimi.local");if(r)r[3]=0;draw();rerun();};
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
  ["rcpt","login","send"].forEach(m=>$("f_"+m).style.display=m===mode?"flex":"none");$("steps").innerHTML="<li>Vajuta „Käivita“.</li>";$("res").innerHTML="";});
 // --- SQL abifunktsioonid ---
@@ -220,14 +231,19 @@ function send(){
   li("ok","Sisselogija ja saatja klapivad.");out("ok","<b>250 2.1.0 Ok</b> – saatmine lubatud.");
  }catch(e){if(e.db)dbFail();else throw e;}
 }
-$("go").onclick=()=>{S=[];$("res").innerHTML="";({rcpt,login,send})[mode]();$("steps").innerHTML=S.join("");};
+let ran=false;
+function run(){ran=true;S=[];$("res").innerHTML="";try{({rcpt,login,send})[mode]();}catch(e){S.push(`<li class="bad">Viga simulaatoris: ${esc(e.message||e)}</li>`);}$("steps").innerHTML=S.join("");}
+function rerun(){if(ran)run();}
+$("go").onclick=run;
+["rcpt","lu","lp","su","sf"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();run();}}));
+["f_both","f_pw","f_ln"].forEach(id=>$(id).addEventListener("change",rerun));
 const TASKS=[
  ["Kiri aliasele info@perenimi.local. Mitu SQL-päringut tehti ja mis järjekorras?",()=>{setMode("rcpt");$("rcpt").value="info@perenimi.local";}],
  ["Kiri olematu@perenimi.local. Millal saatja vea saab?",()=>{setMode("rcpt");$("rcpt").value="olematu@perenimi.local";}],
  ["Kiri postmaster@pood.perenimi.local. Kuhu see jõuab?",()=>{setMode("rcpt");$("rcpt").value="postmaster@pood.perenimi.local";}],
  ["Kiri myyk-koopia@pood.perenimi.local. Mis juhtub välise aadressiga?",()=>{setMode("rcpt");$("rcpt").value="myyk-koopia@pood.perenimi.local";}],
  ["Võta Jaani postkasti real „active“ maha (nagu veebiliides) ja saada talle kiri. Siis vajuta „Algseis“ ja nuppu „SQL: jaan välja ainult mailbox-tabelis“ ja saada uuesti. Mis vahe?",()=>{setMode("rcpt");$("rcpt").value="jaan@perenimi.local";}],
- ["Lisa nupuga postkast kati@perenimi.local ja logi kohe sisse (parool Uus.Parool.26). Kas Postfixi või Dovecoti pidi taaskäivitama?",()=>{setMode("login");$("lu").value="kati@perenimi.local";$("lp").value="Uus.Parool.26";}],
+ ["Lisa vasakul vormiga postkast kati@perenimi.local (parool Uus.Parool.26) ja logi kohe sisse. Kas Postfixi või Dovecoti pidi taaskäivitama?",()=>{setMode("login");$("lu").value="kati@perenimi.local";$("lp").value="Uus.Parool.26";}],
  ["Lülita sisse %Ln ja logi Marina sisse. Miks ei õnnestu?",()=>{setMode("login");$("f_ln").checked=true;$("lu").value="mari@perenimi.local";$("lp").value="Mari.Parool.26";}],
  ["Jaan proovib saata Mari nimel. Ja info@ nimel?",()=>{setMode("send");$("su").value="jaan@perenimi.local";$("sf").value="mari@perenimi.local";}],
  ["Lülita sisse „mydestination sisaldab $mydomain“ ja saada kiri mari@-le.",()=>{setMode("rcpt");$("f_both").checked=true;$("rcpt").value="mari@perenimi.local";}],
