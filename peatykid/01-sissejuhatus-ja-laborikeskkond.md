@@ -90,7 +90,7 @@ Labor töötab **Proxmox VE** keskkonnas. Igal õppijal on oma **SDN vnet** (*So
 | 19 | Postfix ja Dovecot MariaDB-ga | Ubuntu |
 | 20 | Haldus, laborid 13–15, tõrkeotsing | Ubuntu |
 
-Interaktiivsed harjutused (DHCP, DNS, Apache virtuaalhosti valik, e-kirja teekond ja rikked) on kaustas [`interaktiivne/`](../interaktiivne/index.html).
+Interaktiivsed harjutused (DHCP, DNS, Apache virtuaalhosti valik, e-kirja teekond ja rikked) on kaustas [`interaktiivne/`](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/index.html).
 
 ### 1.6 Hetktõmmised
 

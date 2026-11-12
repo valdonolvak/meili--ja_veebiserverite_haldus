@@ -142,6 +142,6 @@ Teised võimalused: **ViMbAdmin**, **Modoboa** (Python, sisaldab ka DKIM-i ja st
 | 19 | Postfix ja Dovecot loevad andmebaasi; vanade postkastide kolimine |
 | 20 | Igapäevane haldus, teine domeen ja DKIM, varundus, laborid 13–15, tõrkeotsing |
 
-Interaktiivne harjutus: [virtuaalpostkastide simulaator](../interaktiivne/virtuaal-simulaator.html) – muuda tabeleid ja vaata, milliseid SQL-päringuid Postfix ja Dovecot teevad.
+Interaktiivne harjutus: [virtuaalpostkastide simulaator](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/virtuaal-simulaator.html) – muuda tabeleid ja vaata, milliseid SQL-päringuid Postfix ja Dovecot teevad.
 
 > **Eeldus:** peatükkide 10–12 seadistus töötab (kõik 10.10 testid läbivad, Roundcube töötab). Tee Ubuntust Proxmoxis **hetktõmmis** `enne-osa-3` – kui midagi läheb valesti, saad tagasi töötava Osa II serveri juurde.

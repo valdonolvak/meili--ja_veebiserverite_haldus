@@ -683,4 +683,4 @@ Järgmistes peatükkides lisanduvad OpenDKIM (`smtpd_milters`, peatükk 11) ja r
 | `/etc/aliases` | süsteemi aliased | `newaliases` |
 | `/home/<kasutaja>/Maildir/` | postkastid (loob Dovecot) | – |
 
-Kirja teekond selle seadistusega on interaktiivselt läbi mängitav [e-kirja teekonna simulaatoris](../interaktiivne/e-kirja-simulaator.html).
+Kirja teekond selle seadistusega on interaktiivselt läbi mängitav [e-kirja teekonna simulaatoris](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/e-kirja-simulaator.html).

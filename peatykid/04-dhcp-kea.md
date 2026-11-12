@@ -261,4 +261,4 @@ Lisa ka DNS-i kirje, et masinat saaks nime järgi leida (peatükk 3.11): `win11 
 
 Praegu teab BIND ainult neid nimesid, mis tsoonifaili käsitsi kirjutasid. Suuremates võrkudes uuendab DHCP-server ise DNS-kirjeid: kui klient saab aadressi, lisatakse tsooni `DESKTOP-AB12.perenimi.local A 192.168.XXX.57` (*Dynamic DNS*). Kea-s teeb seda eraldi teenus `kea-dhcp-ddns-server`, mis saadab BIND-ile TSIG-võtmega allkirjastatud uuendusi. Windows Serveri AD-DNS teeb sama automaatselt. Repo varasem juhend [DDNS-DHCP](../Epost_DNS/DDNS-DHCP.md) kirjeldab põhimõtet.
 
-> **Interaktiivne harjutus:** [DHCP simulaator](../interaktiivne/dhcp-simulaator.html) – vaata DORA pakette, rendi pikendamist ja tüüpilisi rikkeid (teine DHCP-server, vale liides, vahemik otsas, reserveering).
+> **Interaktiivne harjutus:** [DHCP simulaator](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/dhcp-simulaator.html) – vaata DORA pakette, rendi pikendamist ja tüüpilisi rikkeid (teine DHCP-server, vale liides, vahemik otsas, reserveering).
