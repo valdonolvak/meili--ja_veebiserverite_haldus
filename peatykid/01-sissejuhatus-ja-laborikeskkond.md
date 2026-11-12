@@ -21,7 +21,7 @@ Labor töötab **Proxmox VE** keskkonnas. Igal õppijal on oma **SDN vnet** (*So
 | --- | --- | --- | --- | --- |
 | Debian | Debian 13 (trixie) | `debian.perenimi.local` | 192.168.XXX.10 (staatiline) | Kea DHCP, BIND9, Apache2 + PHP + WordPress (`www`, `wp`, `blogi`), MariaDB (`wp`), labori CA |
 | Ubuntu | Ubuntu 24.04 LTS | `mail.perenimi.local` | 192.168.XXX.20 (staatiline) | Postfix, Dovecot, OpenDKIM, Roundcube, MariaDB (`blogi` kaugandmebaas) |
-| Windows klient | Windows 11 | – | **DHCP-st**, vahemik 192.168.XXX.50–99 | brauser, `nslookup`, Thunderbird (valikuline) |
+| Windows klient | Windows 11 | – | ajutiselt staatiline **192.168.XXX.30** (laborid 1–2), seejärel **DHCP-st** 192.168.XXX.50–99 | brauser, `nslookup`, Thunderbird (valikuline) |
 | Lüüs | – | – | 192.168.XXX.1 | Proxmoxi SDN-i alamvõrgu lüüs, SNAT internetti |
 
 > **NB! Lüüsi aadress** (`192.168.XXX.1`) on Proxmoxi SDN-i alamvõrgu (*subnet*) seadetes määratud *Gateway*. Kontrolli seda õpetajalt. Ülejäänud juhend jääb samaks.

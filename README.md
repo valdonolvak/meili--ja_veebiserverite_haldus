@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | Debian | Debian 13 | 192.168.XXX.10 (staatiline) | Kea DHCP, BIND9 (`perenimi.local`), Apache2 + PHP + WordPress (`www`, `wp`, `blogi`), MariaDB, labori CA |
 | Ubuntu | Ubuntu 24.04 LTS | 192.168.XXX.20 (staatiline) | Postfix, Dovecot, OpenDKIM, Roundcube (`mail.perenimi.local`), MariaDB (blogi kaugandmebaas) |
-| Windows klient | Windows 11 | DHCP: 192.168.XXX.50–99 | brauser, testimine |
+| Windows klient | Windows 11 | alguses staatiline .30, alates laborist 3 DHCP: 192.168.XXX.50–99 | brauser, testimine |
 | Lüüs | – | 192.168.XXX.1 | Proxmoxi SDN-i alamvõrgu lüüs, SNAT |
 
 **XXX = Proxmoxi vneti number**, võrk `192.168.XXX.0/24`.

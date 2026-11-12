@@ -171,6 +171,15 @@ Kea kasutab vaikimisi **raw-soklit** – see näeb DHCP-pakette enne Linuxi tule
 
 ### 4.9 Windowsi klient saab aadressi
 
+Windowsil on seni käsitsi pandud aadress `192.168.XXX.30` (2.11.1). **Lülita esmalt võrgukaart DHCP peale** (2.11.2): *Settings → Network & internet → Ethernet → IP assignment → Automatic (DHCP)* ja sama *DNS server assignment* juures. Või administraatori PowerShellis:
+
+```powershell
+netsh interface ipv4 set address name="Ethernet" source=dhcp
+netsh interface ipv4 set dnsservers name="Ethernet" source=dhcp
+```
+
+Seejärel:
+
 **Windowsi klient** (PowerShell või cmd):
 
 ```powershell

@@ -36,7 +36,7 @@ Osa III (andmebaasipõhine meiliserver) laborid **13–15** on peatükis [20](20
 7. `sudo apt update && sudo apt full-upgrade -y` ja põhitööriistad (2.7).
 8. `ufw`: luba OpenSSH ja lülita sisse mõlemas (2.10).
 9. Debian: paigalda rsyslog (2.9.2). Kontrolli, et tekkisid failid `/var/log/syslog` ja `/var/log/auth.log`. Saada `logger "Labor 1 – perenimi"` ja leia see rida failist `/var/log/syslog`.
-10. Windowsi klient jääb DHCP peale (vaikeseade). Kuni DHCP-serverit pole (labor 3), on tal `169.254.x.x` aadress – see on ootuspärane.
+10. Windowsi klient: pane ajutiselt staatiline aadress `192.168.XXX.30/24`, lüüs `.1`, DNS `192.168.XXX.10` (2.11.1). Kontrolli `ipconfig /all` ja `ping 192.168.XXX.10`, `ping 192.168.XXX.20`. DHCP peale lülitame laboris 3.
 
 **Kontrollpunkt:**
 
@@ -72,7 +72,7 @@ sudo ufw status             # Status: active, 22/tcp ALLOW
 6. Kontrolli `named-checkconf` ja `named-checkzone`, taaskäivita `named` (3.8).
 7. Muuda Debiani nimeserveriks `127.0.0.1`; Ubuntus peab netplanis olema `192.168.XXX.10`.
 8. Luba tulemüüris port 53 TCP ja UDP labori võrgust (3.10).
-9. Testi Debianis ja Ubuntus (`dig`, `resolvectl query mail.perenimi.local`).
+9. Testi Debianis ja Ubuntus (`dig`, `resolvectl query mail.perenimi.local`) ning Windowsis (`nslookup mail.perenimi.local`, `ping debian.org`).
 
 **Kontrollpunkt:**
 
@@ -103,7 +103,7 @@ dig +short debian.org                     # IP (edastajad töötavad)
 2. Paigalda `kea-dhcp4-server` (4.5).
 3. Kirjuta `/etc/kea/kea-dhcp4.conf` peatüki 4.6 järgi. Kontrolli `kea-dhcp4 -t` (4.7).
 4. Taaskäivita teenus, vaata logist `listening on interface` rida. Luba tulemüüris UDP 67 (4.8).
-5. Windowsis `ipconfig /release`, `ipconfig /renew`, `ipconfig /all` – täida laboripäevikus tabel 2.11 (4.9).
+5. Windowsis lülita võrgukaart staatiliselt aadressilt `.30` DHCP peale (2.11.2), siis `ipconfig /release`, `ipconfig /renew`, `ipconfig /all` – täida laboripäevikus tabel 2.11.3 (4.9).
 6. Debianis vaata rendifaili ja logi: leia oma Windowsi MAC ja aadress (4.9).
 7. Windowsis: `nslookup mail.perenimi.local`, `nslookup -type=MX perenimi.local`, `ping wp`.
 8. **Reserveering:** tee Windowsile reserveering `.100` (4.10), lisa DNS-i `win11` A-kirje. Kontrolli `ipconfig /all` ja `nslookup win11`.

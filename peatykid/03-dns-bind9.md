@@ -229,7 +229,7 @@ dig @127.0.0.1 mail.perenimi.local                 # vaata lippe: flags: qr aa r
 
 `aa` (*authoritative answer*) näitab, et vastas tsooni omanik.
 
-**Windowsi klient** (PowerShell) – Windows saab Debiani nimeserveri aadressi DHCP-st, mille seadistame järgmises peatükis. Kuni seda pole, tee testid ainult Debianis ja korda Windowsi teste pärast peatükki 4:
+**Windowsi klient** (PowerShell) – Windowsil on käsitsi seatud nimeserver `192.168.XXX.10` (2.11.1). Kasuta täisnimesid, sest DNS-järelliite annab alles DHCP (peatükk 4):
 
 ```powershell
 nslookup mail.perenimi.local

@@ -180,7 +180,7 @@ sudo apt install -y curl wget nano unzip ca-certificates bind9-dnsutils net-tool
 
 Servereid hallatakse **kaugelt**. Proxmoxi konsool sobib paigalduseks ja hädaolukorraks, aga igapäevatöö käib SSH-ga (*Secure Shell*, port 22): Windowsi PowerShellist saab käske kopeerida ja kleepida, avada mitu akent korraga ning kopeerida faile `scp`-ga.
 
-> **Millal Windowsist ühenduda?** Windowsi klient saab IP-aadressi Debiani DHCP-serverilt (peatükk 4, labor 3). Enne seda on tal aadress `169.254.x.x` ja serveritesse ta ei ulatu. Tee jaotis 2.8.1 kohe, jaotised 2.8.2–2.8.6 aga pärast laborit 3. Kui tahad SSH-d kohe kasutada, pane Windowsile ajutiselt käsitsi aadress `192.168.XXX.200/24` ja hiljem taasta DHCP (2.11).
+> **Windowsi aadress:** kuni DHCP-serverit pole (peatükk 4), on Windowsil käsitsi pandud aadress `192.168.XXX.30` (2.11.1). Tee see enne SSH-ühendust. Pärast DHCP-le üleminekut töötab kõik edasi samamoodi.
 
 #### 2.8.1 SSH-server mõlemas Linuxis
 
@@ -455,7 +455,7 @@ sudo less +F /var/log/mail.log                       # sirvimine; Ctrl+C, siis q
 Proovi kohe: ava Debianis `sudo tail -f /var/log/auth.log` ja logi Windowsist sisse `ssh debian`. Ilmub rida:
 
 ```text
-2026-11-12T22:58:01.123456+02:00 debian sshd-session[2412]: Accepted publickey for opilane from 192.168.XXX.57 port 50122 ssh2: ED25519 SHA256:Hx7…
+2026-11-12T22:58:01.123456+02:00 debian sshd-session[2412]: Accepted publickey for opilane from 192.168.XXX.30 port 50122 ssh2: ED25519 SHA256:Hx7…
 ```
 
 Rea osad on aeg (Debian 13 ja Ubuntu 24.04 kasutavad täpset ISO 8601 vormingut koos ajavööndiga), hostinimi, programm ja protsessi number nurksulgudes ning teade. `Accepted publickey` näitab, et sisselogimine käis võtmega. Parooliga oleks see `Accepted password`. Vale parooli korral on rida `Failed password for …` – just neid ridu otsib hiljem fail2ban (peatükk 11).
@@ -485,9 +485,68 @@ Iga masina lõplikud reeglid lisame vastava teenuse peatükis:
 
 ### 2.11 Windowsi klient
 
-Windowsi klient saab IP-aadressi, lüüsi, nimeserveri ja domeeni **automaatselt Debiani DHCP-serverilt** (peatükk 4). Kliendis ei seadista midagi käsitsi – võrgukaart peab olema vaikeseadetes (*Obtain an IP address automatically*, *Obtain DNS server address automatically*).
+Windowsi klient saab lõpuks IP-aadressi, lüüsi, nimeserveri ja domeeni **automaatselt Debiani DHCP-serverilt** (peatükk 4). DHCP-serverit aga veel pole. Ilma selleta paneks Windows endale aadressi `169.254.x.x` (APIPA) ega ulatuks serveriteni. Seepärast saab Windows **laborite 1–2 ajaks käsitsi staatilise aadressi `192.168.XXX.30`**. Peatükis 4 lülitame ta DHCP peale.
 
-Kontroll (PowerShell või cmd):
+| Etapp | Windowsi aadress | Kust tuleb |
+| --- | --- | --- |
+| Labor 1–2 (peatükid 2–3) | `192.168.XXX.30` | käsitsi (2.11.1) |
+| Alates laborist 3 (peatükk 4) | `192.168.XXX.50–99` (reserveeringuga `.100`) | Debiani DHCP-server Kea (2.11.2) |
+
+Aadress `.30` on valitud nii, et see ei kattu serverite (`.10`, `.20`), lüüsi (`.1`) ega DHCP vahemikuga (`.50–.99`). Nii ei teki konflikti ka siis, kui unustad staatilise aadressi kliendile alles.
+
+#### 2.11.1 Ajutine staatiline aadress
+
+| Seade | Väärtus | Selgitus |
+| --- | --- | --- |
+| IP-aadress | `192.168.XXX.30` | kliendi aadress labori võrgus |
+| Võrgumask | `255.255.255.0` (`/24`) | võrk on `192.168.XXX.0–255` |
+| Vaikelüüs | `192.168.XXX.1` | Proxmoxi SDN-i lüüs, sealt edasi internetti |
+| Eelistatud DNS-server | `192.168.XXX.10` | Debian, kuhu laboris 2 tuleb BIND9 |
+| Alternatiivne DNS-server | *(tühi)* | vt märkust allpool |
+
+**Variant A – GUI:** *Settings → Network & internet → Ethernet → IP assignment → Edit → Manual → IPv4: On*. Täida väljad tabeli järgi (*Subnet mask* `255.255.255.0`, *Gateway* `192.168.XXX.1`, *Preferred DNS* `192.168.XXX.10`) → *Save*.
+
+**Variant B – käsurida** (PowerShell või cmd **administraatorina**). Kõigepealt leia võrgukaardi nimi:
+
+```powershell
+Get-NetAdapter              # veerg Name, tavaliselt "Ethernet"
+```
+
+```powershell
+netsh interface ipv4 set address name="Ethernet" static 192.168.XXX.30 255.255.255.0 192.168.XXX.1
+netsh interface ipv4 set dnsservers name="Ethernet" static 192.168.XXX.10 primary
+```
+
+Kontroll:
+
+```powershell
+ipconfig /all               # DHCP Enabled: No, IPv4 192.168.XXX.30, Gateway .1, DNS .10
+ping 192.168.XXX.10         # Debian vastab
+ping 192.168.XXX.20         # Ubuntu vastab
+ping 192.168.XXX.1          # lüüs vastab
+```
+
+> **Miks pole alternatiivset DNS-i (nt `1.1.1.1`)?** Laboris 1 pole Debianis veel nimeserverit, seega Windows ei leia internetinimesid (`ping debian.org` ebaõnnestub). See pole probleem: laboris 1 vajame ainult IP-aadresse. Kui paneksid teiseks DNS-iks `1.1.1.1`, võtaks Windows pärast BIND-i tööle saamist vahel ikka avaliku serveri, mis ei tea midagi nimest `perenimi.local`. Tulemuseks oleks juhuslikult ebaõnnestuvad päringud. Pärast laborit 2 töötavad Windowsis nii labori nimed kui ka internet.
+
+> **DNS-järelliidet** (`perenimi.local`) käsitsi ei sea. Kuni DHCP-ni kasuta täisnimesid: `nslookup mail.perenimi.local`, mitte `nslookup mail`. Järelliite annab hiljem DHCP.
+
+#### 2.11.2 Üleminek DHCP-le (peatükk 4, labor 3)
+
+Kui Kea töötab (peatükk 4.7–4.8), lülita Windows tagasi automaatseadistusele. **Muidu jääb Windows staatilise aadressi peale ja DHCP-serverilt ei küsi midagi.**
+
+**Variant A – GUI:** *Settings → Network & internet → Ethernet → IP assignment → Edit → Automatic (DHCP)* → *Save*. Sama tee *DNS server assignment* juures.
+
+**Variant B – käsurida (administraatorina):**
+
+```powershell
+netsh interface ipv4 set address name="Ethernet" source=dhcp
+netsh interface ipv4 set dnsservers name="Ethernet" source=dhcp
+ipconfig /renew
+```
+
+Esimene rida eemaldab staatilise aadressi ja lüüsi ning lülitab DHCP sisse. Teine teeb sama DNS-serveritega: kui see jääks tegemata, kasutaks Windows edasi käsitsi pandud DNS-i ega võtaks DHCP-lt saadud väärtust.
+
+#### 2.11.3 Kontroll pärast DHCP-d
 
 ```powershell
 ipconfig /all
@@ -502,6 +561,6 @@ ipconfig /all
 | DNS Servers | 192.168.XXX.10 |
 | Connection-specific DNS Suffix | perenimi.local |
 
-Kui IPv4 aadress algab **169.254.** (APIPA), ei vastanud ükski DHCP-server – vaata peatükki 4.11.
+Kui IPv4 aadress algab **169.254.** (APIPA), ei vastanud ükski DHCP-server – vaata peatükki 4.11. Kui aadress on endiselt `.30` ja *DHCP Enabled: No*, jäi 2.11.2 tegemata.
 
-> Kui oled kliendile varem käsitsi aadressi või DNS-i pannud, taasta automaatne seadistus: *Settings → Network & internet → Ethernet → IP assignment → Edit → Automatic (DHCP)* ja sama *DNS server assignment* juures. Siis `ipconfig /renew`.
+> Pärast üleminekut muutub Windowsi aadress (`.30` → nt `.57`). Serverites see midagi ei muuda, sest me pole tulemüüris ühtegi reeglit Windowsi aadressile seotud. SSH (2.8) ja `~/.ssh/config` töötavad edasi, sest need viitavad **serverite** aadressidele.
