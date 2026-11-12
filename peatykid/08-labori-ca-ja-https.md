@@ -6,6 +6,8 @@ HTTP liigub võrgus avatekstina: WordPressi parool, Roundcube'i parool ja kõik 
 
 *Joonis 8.1: Usaldusahel*
 
+> 🧪 **Interaktiivne harjutus:** [Labori CA ja HTTPS simulaator](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/ca-simulaator.html) – tee selle peatüki sammud nuppudega läbi (CA, serdid, juursert Windowsi ja Ubuntusse) ja ava saite Edge'i, Firefoxi, `curl`-i ja Roundcube'iga. Näed iga kontrolli eraldi: usaldus, kuupäev, nimi SAN-is. Kümme ülesannet tüüpiliste vigadega: SAN puudub, avad IP-ga, sert aegus, CA loodi uuesti, võti ei sobi serdiga, Firefox ei usalda Windowsi juursertide hoidlat.
+
 ### 8.1 Mõisted
 
 | Termin | Selgitus |
@@ -224,5 +226,7 @@ Ubuntu peab ise labori CA-d usaldama, sest Roundcube (PHP) ühendub Dovecoti ja 
 | Aadressiriba nimi on SAN-is | `NET::ERR_CERT_COMMON_NAME_INVALID` – puudub SAN või avad IP-ga |
 | Sert kehtib (kuupäevad) | `NET::ERR_CERT_DATE_INVALID` – vaata ka masina kellaaega! |
 | Sert pole tühistatud | laboris CRL-i/OCSP-d pole, kontrolli ei toimu |
+
+Neid kontrolle saab järele proovida [CA simulaatoris](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/ca-simulaator.html): lülita sisse rike, ava aadress ja vaata, milline kontroll ebaõnnestub ja mida näitab brauser, `curl` või `openssl s_client`.
 
 > Varasem juhend: [Apache2 ja Wordpressi turvalisuse tõstmine koos HTTPS seadistusega](../Turvalisus/Apache2%20ja%20Wordpressi%20turvalisuse%20t%C3%B5stmine%20koos%20HTTPS%20seadistusega.md).

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labori CA ja HTTPS simulaator</title>
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--ink:#1f1e1c;--quiet:#6b6862;--line:#dcd9d2;--acc:#2f6fd6;--acc-t:#e8f0fc;--ok:#2e7d4f;--ok-t:#e5f3ea;--bad:#b3261e;--bad-t:#fbeae8;--warn:#9a6700;--warn-t:#fbf2dc;--mono:ui-monospace,Consolas,"DejaVu Sans Mono",monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b1a;--card:#252524;--ink:#ecebe8;--quiet:#a3a09a;--line:#3a3936;--acc:#7aa7f0;--acc-t:#24324a;--ok:#6cc08b;--ok-t:#1f3326;--bad:#f08a80;--bad-t:#3a2220;--warn:#e0b250;--warn-t:#3a311c}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:20px 24px 8px;max-width:1260px;margin:auto}
+header a{color:var(--acc)}
+h1{font-size:22px;margin:6px 0 4px}
+header p{margin:0;color:var(--quiet);max-width:940px}
+main{max-width:1260px;margin:auto;padding:12px 24px 40px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:20px}
+@media (max-width:960px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 10px}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.s{font-size:12.5px;padding:2px 8px}
+.btn:disabled{opacity:.45;cursor:default}
+.step{display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0}
+.num{width:24px;height:24px;border-radius:50%;background:var(--line);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.step.done .num{background:var(--ok);color:#fff}
+.step small{color:var(--quiet);display:block}
+.in{font:13.5px var(--mono);padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);width:100%}
+.opt label{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:5px 0;cursor:pointer}
+.opt input{margin-top:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.term{font:12.5px/1.45 var(--mono);white-space:pre-wrap;word-break:break-all;background:#0f1720;color:#d6e2ee;border-radius:8px;padding:10px 12px;max-height:260px;overflow:auto}
+.term .p{color:#7fd1ff} .term .e{color:#ff8f8f} .term .g{color:#9be59b}
+.chain{display:flex;flex-direction:column;align-items:center;gap:4px;margin:4px 0}
+.cert{border:1.5px solid var(--line);border-radius:9px;padding:7px 12px;font-size:13px;width:100%;max-width:460px;background:var(--card)}
+.cert b{font-size:14px}
+.cert .m{font:12px var(--mono);color:var(--quiet)}
+.cert.ok{border-color:var(--ok);background:var(--ok-t)} .cert.bad{border-color:var(--bad);background:var(--bad-t)} .cert.warn{border-color:var(--warn);background:var(--warn-t)}
+.arr{color:var(--quiet);font-size:13px}
+ol.steps{padding-left:0;list-style:none;margin:0}
+ol.steps li{border-left:3px solid var(--line);padding:4px 0 4px 11px;margin:5px 0;font-size:14px}
+ol.steps li.ok{border-color:var(--ok)} ol.steps li.bad{border-color:var(--bad)} ol.steps li.warn{border-color:var(--warn)} ol.steps li.act{border-color:var(--acc)}
+.browser{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:6px}
+.bar{display:flex;align-items:center;gap:8px;background:var(--bg);padding:7px 10px;font:13px var(--mono);border-bottom:1px solid var(--line)}
+.page{padding:16px;min-height:90px}
+.page.err{background:var(--bad-t)}
+.page h3{margin:0 0 6px}
+.tasks li{margin:6px 0;font-size:14px}
+code{font-family:var(--mono);font-size:.92em}
+select{font:inherit;padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink)}
+.clock{font:13px var(--mono);color:var(--quiet)}
+</style>
+</head>
+<body>
+<header>
+<a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
+<h1>Labori CA ja HTTPS simulaator</h1>
+<p>Tee peatüki 8 sammud nuppudega läbi: loo CA, väljasta serdid, paigalda juursert klientidele. Siis ava aadressi erinevatest klientidest ja vaata, mida klient kontrollib: kas allkiri on usaldatud CA-lt, kas nimi on SAN-is ja kas sert kehtib. Lülita sisse rikkeid ja leia, miks ühendus ebaõnnestub.</p>
+</header>
+<main>
+<section>
+<div class="card">
+<h2>Sammud (Debian → Ubuntu, Windows)</h2>
+<div class="step" id="s1"><div class="num">1</div><div><b>Loo labori CA</b><small>Debian · /root/labori-ca · ca.key + ca.crt (10 aastat)</small></div><button class="btn s primary" data-a="ca">Tee</button></div>
+<div class="step" id="s2"><div class="num">2</div><div><b>Väljasta Debiani sert</b><small>SAN (komaga):</small><input class="in" id="san_deb" value="www.perenimi.local, wp.perenimi.local, blogi.perenimi.local, perenimi.local, debian.perenimi.local"></div><button class="btn s primary" data-a="deb">Tee</button></div>
+<div class="step" id="s3"><div class="num">3</div><div><b>Väljasta meiliserveri sert</b><small>SAN:</small><input class="in" id="san_mail" value="mail.perenimi.local, ubuntu.perenimi.local"></div><button class="btn s primary" data-a="mail">Tee</button></div>
+<div class="step" id="s4"><div class="num">4</div><div><b>Paigalda serdid</b><small>Debian: Apache · Ubuntu: Apache, Postfix, Dovecot (scp)</small></div><button class="btn s primary" data-a="inst">Tee</button></div>
+<div class="step" id="s5"><div class="num">5</div><div><b>Ubuntu usaldab CA-d</b><small>update-ca-certificates (vajab Roundcube → Dovecot/Postfix)</small></div><button class="btn s primary" data-a="ubu">Tee</button></div>
+<div class="step" id="s6"><div class="num">6</div><div><b>Windows usaldab CA-d</b><small>ca.crt → Local Machine → Trusted Root Certification Authorities</small></div><button class="btn s primary" data-a="win">Tee</button></div>
+<div class="row" style="margin-top:10px"><button class="btn s" id="all">Tee kõik sammud</button><button class="btn s" id="reset">Algusesse</button></div>
+</div>
+<div class="card">
+<h2>Terminal</h2>
+<div class="term" id="term">(sammude käsud ja väljund ilmuvad siia)</div>
+</div>
+<div class="card opt">
+<h2>Rikked ja katsed</h2>
+<label><input type="checkbox" id="f_nosan"> <span>Debiani sert tehakse <b>ilma SAN-ita</b> (ainult CN) <small>– lülita enne sammu 2</small></span></label>
+<label><input type="checkbox" id="f_key"> <span>Apache'is on vale võtmefail (võti ei sobi serdiga)</span></label>
+<label><input type="checkbox" id="f_ff"> <span>Firefoxis on <code>security.enterprise_roots.enabled = false</code></span></label>
+<div class="row"><button class="btn s" id="newca">Loo CA uuesti (uus võti)</button><small style="color:var(--quiet)">– vanad serdid ja Windowsi imporditud CA jäävad vanad</small></div>
+<div class="row"><span>Kell:</span><input type="range" id="days" min="0" max="4000" step="5" value="0" style="flex:1"><span class="clock" id="clock"></span></div>
+</div>
+<div class="card">
+<h2>Ülesanded</h2>
+<ol class="tasks" id="tasks"></ol>
+</div>
+</section>
+<section>
+<div class="card">
+<h2>Test</h2>
+<div class="row">
+<select id="client">
+<option value="edge">Windows · Edge / Chrome</option>
+<option value="ff">Windows · Firefox</option>
+<option value="curl">Ubuntu · curl</option>
+<option value="rc">Roundcube (Ubuntu) → Dovecot :993</option>
+</select>
+<input class="in" id="url" value="https://wp.perenimi.local/" style="flex:1;min-width:220px">
+<button class="btn primary" id="go">Ava</button>
+</div>
+<div class="row" id="quick"></div>
+<div class="browser"><div class="bar"><span id="lock">ⓘ</span><span id="bar"></span></div><div class="page" id="page"></div></div>
+</div>
+<div class="card">
+<h2>Mida klient kontrollis?</h2>
+<ol class="steps" id="steps"><li>Tee sammud ja vajuta „Ava“.</li></ol>
+</div>
+<div class="card">
+<h2>Usaldusahel</h2>
+<div class="chain" id="chain"></div>
+</div>
+</section>
+</main>
+<script>
+window.addEventListener("error",e=>{const r=document.getElementById("steps");if(r)r.innerHTML=`<li class="bad">JavaScripti viga: ${e.message} (rida ${e.lineno})</li>`;});
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+const T0=Date.UTC(2026,10,12);
+let st;
+function reset(){st={ca:null,oldCas:[],deb:null,mail:null,inst:false,ubuTrust:[],winTrust:[],serial:4096};$("term").innerHTML="(sammude käsud ja väljund ilmuvad siia)";refresh();}
+function day(d){return new Date(T0+d*86400000);}
+function fmt(d){return day(d).toUTCString().slice(5,16)+" "+day(d).getUTCFullYear()+" GMT";}
+function fmtShort(d){return day(d).toISOString().slice(0,10);}
+function now(){return +$("days").value;}
+function term(lines){$("term").innerHTML=lines.join("\n");$("term").scrollTop=0;}
+const P=s=>`<span class="p">${esc(s)}</span>`;
+function newId(){return Math.random().toString(16).slice(2,10).toUpperCase();}
+function act(a){
+ const d=now();
+ if(a==="ca"){st.ca={id:newId(),cn:"Perenimi Labori CA",nb:d,na:d+3650};
+  term([P("# Debian, root, /root/labori-ca"),P("openssl genrsa -out ca.key 4096"),P('openssl req -x509 -new -key ca.key -sha256 -days 3650 -out ca.crt -subj "/C=EE/O=Perenimi labor/CN=Perenimi Labori CA"'),P("openssl x509 -in ca.crt -noout -subject -dates"),
+   `subject=C = EE, O = Perenimi labor, CN = Perenimi Labori CA`,`notBefore=${fmt(d)}`,`notAfter=${fmt(d+3650)}`,"",`<span class="g">CA loodud. Võtme sõrmejälg (simulaatoris): ${st.ca.id}</span>`]);}
+ if(a==="deb"||a==="mail"){
+  if(!st.ca){term([`<span class="e">Enne tuleb luua CA (samm 1) – pole, millega allkirjastada.</span>`]);return;}
+  const deb=a==="deb";const nosan=deb&&$("f_nosan").checked;
+  const san=nosan?[]:$(deb?"san_deb":"san_mail").value.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+  const cn=deb?"www.perenimi.local":"mail.perenimi.local";const name=deb?"debian":"mail.perenimi.local";
+  st[deb?"deb":"mail"]={cn,san,issuer:st.ca.id,issuerCn:st.ca.cn,nb:d,na:d+825,serial:(st.serial++).toString(16).toUpperCase()};
+  const ext=nosan?["basicConstraints = CA:FALSE","keyUsage = digitalSignature, keyEncipherment","extendedKeyUsage = serverAuth","# subjectAltName PUUDUB!"]:["basicConstraints = CA:FALSE","keyUsage = digitalSignature, keyEncipherment","extendedKeyUsage = serverAuth","subjectAltName = "+san.map(x=>"DNS:"+x).join(", ")];
+  term([P(`cat > ${deb?"debian":"mail"}.ext <<EOF`),...ext,P("EOF"),P(`openssl genrsa -out ${name}.key 2048`),P(`openssl req -new -key ${name}.key -out ${name}.csr -subj "/C=EE/O=Perenimi labor/CN=${cn}"`),
+   P(`openssl x509 -req -in ${name}.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out ${name}.crt -days 825 -sha256 -extfile ${deb?"debian":"mail"}.ext`),
+   `Certificate request self-signature ok`,`subject=C = EE, O = Perenimi labor, CN = ${cn}`,P(`openssl verify -CAfile ca.crt ${name}.crt`),`${name}.crt: OK`,P(`openssl x509 -in ${name}.crt -noout -ext subjectAltName`),
+   nosan?`<span class="e">No extensions in certificate</span>`:`X509v3 Subject Alternative Name: \n    ${san.map(x=>"DNS:"+x).join(", ")}`]);}
+ if(a==="inst"){
+  if(!st.deb||!st.mail){term([`<span class="e">Väljasta enne mõlemad serdid (sammud 2 ja 3).</span>`]);return;}
+  st.inst=true;
+  term([P("# Debian (root)"),P("install -m 644 debian.crt /etc/ssl/certs/debian.crt"),P("install -m 600 debian.key /etc/ssl/private/debian.key"),P("scp ca.crt mail.perenimi.local.crt mail.perenimi.local.key opilane@192.168.XXX.20:"),
+   P("# Ubuntu"),P("sudo install -m 644 mail.perenimi.local.crt /etc/ssl/certs/"),P("sudo install -m 640 -g ssl-cert mail.perenimi.local.key /etc/ssl/private/"),P("sudo systemctl reload apache2 postfix dovecot"),
+   $("f_key").checked?`<span class="e">apache2: AH02565: Certificate and private key debian.perenimi.local:443:0 from /etc/ssl/certs/debian.crt and /etc/ssl/private/debian.key do not match\napache2: AH00016: Configuration Failed</span>`:`<span class="g">teenused laadisid serdid</span>`]);}
+ if(a==="ubu"){if(!st.ca){term([`<span class="e">CA-d pole veel.</span>`]);return;}
+  if(!st.ubuTrust.includes(st.ca.id))st.ubuTrust.push(st.ca.id);
+  term([P("# Ubuntu"),P("sudo install -m 644 ca.crt /usr/local/share/ca-certificates/perenimi-labori-ca.crt"),P("sudo update-ca-certificates"),"Updating certificates in /etc/ssl/certs...","1 added, 0 removed; done."]);}
+ if(a==="win"){if(!st.ca){term([`<span class="e">CA-d pole veel.</span>`]);return;}
+  if(!st.winTrust.includes(st.ca.id))st.winTrust.push(st.ca.id);
+  term([P("# Windows PowerShell (administraatorina)"),P("scp opilane@192.168.XXX.10:ca.crt $env:USERPROFILE\\Downloads\\"),P('Import-Certificate -FilePath "$env:USERPROFILE\\Downloads\\ca.crt" -CertStoreLocation Cert:\\LocalMachine\\Root'),"",
+   "   PSParentPath: Microsoft.PowerShell.Security\\Certificate::LocalMachine\\Root","",`Thumbprint                                Subject`,`----------                                -------`,`${(st.ca.id+st.ca.id+st.ca.id+st.ca.id+st.ca.id).slice(0,40)}  CN=Perenimi Labori CA, O=Perenimi labor, C=EE`]);}
+ refresh();
+}
+function refresh(){
+ const done={s1:!!st.ca,s2:!!st.deb,s3:!!st.mail,s4:st.inst,s5:st.ca&&st.ubuTrust.includes(st.ca.id),s6:st.ca&&st.winTrust.includes(st.ca.id)};
+ for(const k in done)$(k).classList.toggle("done",!!done[k]);
+ $("clock").textContent=`${fmtShort(now())} (+${now()} päeva)`;
+}
+document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a));
+$("all").onclick=()=>{["ca","deb","mail","inst","ubu","win"].forEach(act);act("win");};
+$("reset").onclick=()=>{$("days").value=0;reset();};
+$("newca").onclick=()=>{if(st.ca)st.oldCas.push(st.ca);act("ca");term([...$("term").innerHTML.split("\n"),"",`<span class="e">NB! Uus CA = uus võti. Juba väljastatud serdid kannavad VANA CA allkirja ja töötavad edasi, kuni kliendid vana CA-d usaldavad. Uue CA-ga väljastatud serdid vajavad, et kliendid usaldaksid UUT ca.crt-d.</span>`]);refresh();};
+$("days").oninput=refresh;
+const HOSTS={"www.perenimi.local":"deb","wp.perenimi.local":"deb","blogi.perenimi.local":"deb","perenimi.local":"deb","debian.perenimi.local":"deb","mail.perenimi.local":"mail","ubuntu.perenimi.local":"mail"};
+const QUICK=["https://wp.perenimi.local/","https://blogi.perenimi.local/","https://perenimi.local/","https://192.168.XXX.10/","https://mail.perenimi.local/","https://olematu.perenimi.local/"];
+$("quick").innerHTML=QUICK.map(u=>`<button class="btn s" data-u="${u}">${u.replace("https://","")}</button>`).join("");
+document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{$("url").value=b.dataset.u;test();});
+function test(){
+ const S=[],add=(c,t)=>S.push(`<li class="${c}">${t}</li>`);
+ const cl=$("client").value;let url=$("url").value.trim();
+ if(cl==="rc")url="imaps://mail.perenimi.local:993";
+ const m=url.match(/^(https|imaps):\/\/([^\/:]+)/i);let page="",err=false,lock="ⓘ";
+ const show=()=>{$("steps").innerHTML=S.join("");$("bar").textContent=url;$("lock").textContent=lock;$("page").className="page"+(err?" err":"");$("page").innerHTML=page;};
+ const chain=(c,status)=>{const cas=[st.ca,...st.oldCas].filter(Boolean);const iss=cas.find(x=>x.id===c.issuer);
+  $("chain").innerHTML=`<div class="cert ${status.ca}"><b>${esc(c.issuerCn)}</b> <span class="m">(juursert, võti ${c.issuer})</span><div class="m">kehtib ${iss?fmtShort(iss.nb)+" – "+fmtShort(iss.na):"?"}</div></div><div class="arr">↓ allkirjastas</div>
+  <div class="cert ${status.leaf}"><b>CN=${esc(c.cn)}</b> <span class="m">serial ${c.serial}</span><div class="m">SAN: ${c.san.length?c.san.map(esc).join(", "):"<b>puudub</b>"}</div><div class="m">kehtib ${fmtShort(c.nb)} – ${fmtShort(c.na)}</div></div>`;};
+ $("chain").innerHTML="";
+ if(!m){add("bad","Vigane aadress – kasuta kujul https://nimi/");show();return;}
+ const host=m[2].toLowerCase(),hostShow=m[2];const d=now();
+ const isIp=/^\d+\.\d+\.|^192\.168\./.test(host);
+ let which=isIp?(host.endsWith(".10")?"deb":host.endsWith(".20")?"mail":null):HOSTS[host];
+ if(!which){add("bad",`DNS: <code>${esc(host)}</code> → NXDOMAIN`);page="<h3>Seda saiti ei leitud</h3><p>DNS_PROBE_FINISHED_NXDOMAIN</p>";err=true;show();return;}
+ add("ok",isIp?`Aadress on IP – DNS-i ei küsita.`:`DNS: <code>${esc(host)}</code> → ${which==="deb"?"192.168.XXX.10 (Debian)":"192.168.XXX.20 (Ubuntu)"}`);
+ const c=st[which];
+ if(!st.inst||!c){add("bad",`TCP ${which==="deb"?"192.168.XXX.10":"192.168.XXX.20"}:${cl==="rc"?993:443} → ühendus keeldutud: serdid pole veel paigaldatud, HTTPS/IMAPS ei tööta (sammud 2–4).`);page="<h3>Seda lehte ei saa avada</h3><p>ERR_CONNECTION_REFUSED</p>";err=true;show();return;}
+ if(which==="deb"&&$("f_key").checked){add("bad","Apache ei käivitunud: <code>AH02565: Certificate and private key … do not match</code>. Port 443 ei kuula.");add("act",`Kontroll: <code>openssl x509 -noout -modulus -in debian.crt | sha256sum</code> ja sama <code>openssl rsa … debian.key</code> – räsid peavad ühtima.`);
+  page="<h3>Seda lehte ei saa avada</h3><p>ERR_CONNECTION_REFUSED</p>";err=true;show();return;}
+ add("ok",`TCP ${cl==="rc"?993:443} avatud. TLS kätlus algab. SNI = <code>${isIp?"(puudub – IP-d ei saadeta)":esc(host)}</code>`);
+ add("act",`Server saadab serdi <b>CN=${esc(c.cn)}</b>, allkirjastaja <b>${esc(c.issuerCn)}</b> (võti ${c.issuer}).`);
+ // usaldus
+ const store=cl==="edge"?st.winTrust:cl==="ff"?($("f_ff").checked?[]:st.winTrust):st.ubuTrust;
+ const storeName=cl==="edge"?"Windowsi juursertide hoidla (Trusted Root)":cl==="ff"?($("f_ff").checked?"Firefoxi oma hoidla (Windowsi oma ei loeta)":"Firefox → Windowsi juursertide hoidla (enterprise_roots)"):"Ubuntu /etc/ssl/certs (update-ca-certificates)";
+ const trusted=store.includes(c.issuer);
+ const allCas=[st.ca,...st.oldCas].filter(Boolean);const issCa=allCas.find(x=>x.id===c.issuer);
+ const status={ca:"ok",leaf:"ok"};
+ const fail=(code,openssl,msg,title)=>{err=true;lock="⚠";
+  if(cl==="edge"||cl==="ff"){page=`<h3>${title||"Teie ühendus pole privaatne"}</h3><p><b>${cl==="ff"?code.ff:code.ch}</b></p><p style="font-size:13.5px">${msg}</p>`;}
+  else if(cl==="curl"){page=`<pre style="white-space:pre-wrap;font-size:12.5px">curl: (60) ${esc(code.curl)}\nMore details here: https://curl.se/docs/sslcerts.html</pre>`;}
+  else page=`<pre style="white-space:pre-wrap;font-size:12.5px">IMAP Error: Login failed … ${esc(code.curl)}</pre><p>Roundcube: „Ühendus IMAP-serveriga ebaõnnestus“.</p>`;
+  add("act",`<code>openssl s_client</code>: Verify return code: ${openssl}`);};
+ if(!trusted){status.ca="bad";
+  const stale=store.length>0;
+  add("bad",`Usaldus: allkirjastaja võtit <b>${c.issuer}</b> pole hoidlas „${storeName}“.${stale?` Hoidlas on CA võtmega ${store.join(", ")} – see on <b>teine</b> CA (sama nimi, aga teine võti)!`:""}`);
+  chain(c,status);
+  fail({ch:"NET::ERR_CERT_AUTHORITY_INVALID",ff:"SEC_ERROR_UNKNOWN_ISSUER",curl:"SSL certificate problem: unable to get local issuer certificate"},"20 (unable to get local issuer certificate)",stale?"CA loodi uuesti: vanad serdid on vana võtmega ja kliendis on teine juursert. Väljasta serdid uuesti uue CA-ga või impordi uus ca.crt – ja ära loo CA-d asjata uuesti.":cl==="rc"||cl==="curl"?"Ubuntu ei usalda labori CA-d – tee samm 5 (update-ca-certificates).":cl==="ff"&&$("f_ff").checked?"Firefox ei loe Windowsi juursertide hoidlat. Impordi ca.crt Firefoxi (Settings → Privacy & Security → Certificates → View Certificates → Authorities → Import) või lülita enterprise_roots sisse.":"Impordi ca.crt Windowsi (samm 6).");
+  show();return;}
+ add("ok",`Usaldus: allkirjastaja on hoidlas „${storeName}“ → allkiri kontrollitud CA avaliku võtmega ✓`);
+ if(issCa&&(d>issCa.na)){status.ca="bad";chain(c,status);add("bad",`CA juursert on aegunud (${fmtShort(issCa.na)}).`);fail({ch:"NET::ERR_CERT_DATE_INVALID",ff:"SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE",curl:"SSL certificate problem: certificate has expired"},"10 (certificate has expired)","Juursert kehtib 10 aastat – siis tuleb luua uus CA ja kõik serdid uuesti väljastada.");show();return;}
+ if(d>c.na||d<c.nb){status.leaf="bad";chain(c,status);add("bad",`Kuupäev: täna on ${fmtShort(d)}, sert kehtib ${fmtShort(c.nb)} – ${fmtShort(c.na)}.`);
+  fail({ch:"NET::ERR_CERT_DATE_INVALID",ff:"SEC_ERROR_EXPIRED_CERTIFICATE",curl:"SSL certificate problem: certificate has expired"},"10 (certificate has expired)","Väljasta uus sert (sama CA-ga, sammud 2–4). Kontrolli ka kliendi kella: vale kellaaeg annab sama vea.");show();return;}
+ add("ok",`Kuupäev: ${fmtShort(d)} on vahemikus ${fmtShort(c.nb)} – ${fmtShort(c.na)} ✓`);
+ // nimi
+ const inSan=c.san.includes(host);
+ if(!inSan){
+  if(!c.san.length&&host===c.cn&&(cl==="curl"||cl==="rc")){add("warn",`SAN puudub; ${cl==="curl"?"curl":"PHP/OpenSSL"} võrdleb varuvariandina CN-iga (<code>${esc(c.cn)}</code>) – sobib. Brauserid seda ei tee!`);}
+  else{status.leaf="bad";chain(c,status);
+   add("bad",c.san.length?`Nimi: <code>${esc(hostShow)}</code> pole SAN-is (${c.san.map(esc).join(", ")}).`:`Nimi: sertis pole SAN-välja. Brauserid ei vaata CN-i (alates Chrome 58, 2017) – sert ei kehti ühelegi nimele.`);
+   fail({ch:"NET::ERR_CERT_COMMON_NAME_INVALID",ff:"SSL_ERROR_BAD_CERT_DOMAIN",curl:`SSL: no alternative certificate subject name matches target host name '${hostShow}'`},"0 (ok) – openssl s_client ei kontrolli nime ilma -verify_hostname valikuta!",isIp?"Sert on tehtud nimedele, mitte IP-aadressile. Ava sait nimega.":c.san.length?`Lisa nimi SAN-i ja väljasta sert uuesti (samm 2/3 + 4).`:`Väljasta sert uuesti koos subjectAltName reaga.`);
+   show();return;}
+ } else add("ok",`Nimi: <code>${esc(host)}</code> on SAN-is ✓`);
+ chain(c,status);lock="🔒";
+ add("act",`<code>openssl s_client</code>: Verify return code: 0 (ok)`);
+ page=cl==="rc"?"<h3>Perenimi veebimeil</h3><p>IMAP: a1 OK Logged in – Roundcube'i sisselogimine töötab.</p>":cl==="curl"?`<pre style="font-size:12.5px">HTTP/1.1 200 OK\nServer: Apache</pre>`:`<h3>${which==="deb"?esc(host):"Perenimi veebimeil"}</h3><p>Ühendus on turvaline. Sert on kehtiv.</p>`;
+ show();
+}
+$("go").onclick=test;$("url").addEventListener("keydown",e=>{if(e.key==="Enter")test();});$("client").onchange=test;
+const TASKS=[
+ ["Tee sammud 1–4 (mitte 5 ja 6) ja ava Windowsis https://wp.perenimi.local/. Miks hoiatus, kuigi sert on olemas?",()=>{["ca","deb","mail","inst"].forEach(act);setU("edge","https://wp.perenimi.local/");}],
+ ["Tee nüüd ka samm 6. Ava uuesti. Mis muutus?",()=>{["ca","deb","mail","inst","win"].forEach(act);setU("edge","https://wp.perenimi.local/");}],
+ ["Kõik sammud tehtud: ava https://192.168.XXX.10/. Miks serdiviga?",()=>{$("all").click();setU("edge","https://192.168.XXX.10/");}],
+ ["Kõik sammud tehtud, aga Roundcube ei saa Dovecotiga ühendust. Mis puudu? (samm 5 jäi tegemata)",()=>{["ca","deb","mail","inst","win"].forEach(act);setU("rc","imaps://mail.perenimi.local:993");}],
+ ["Lülita sisse „ilma SAN-ita“, tee kõik sammud ja ava https://www.perenimi.local/ Edge'is ja curl-iga. Miks tulemused erinevad?",()=>{$("f_nosan").checked=true;$("all").click();setU("edge","https://www.perenimi.local/");}],
+ ["Kõik tehtud. Keri kell 900 päeva edasi ja ava wp. Mis viga ja mis on lahendus?",()=>{$("all").click();$("days").value=900;refresh();setU("edge","https://wp.perenimi.local/");}],
+ ["Kõik tehtud, siis loodi CA uuesti. Ava wp – miks töötab veel? Väljasta nüüd serdid uuesti (2, 3, 4) ja ava uuesti. Mida veel on vaja?",()=>{$("all").click();$("newca").click();setU("edge","https://wp.perenimi.local/");}],
+ ["Lülita sisse „vale võtmefail“ ja tee kõik sammud. Mida näitab terminal sammus 4?",()=>{$("f_key").checked=true;$("all").click();setU("edge","https://wp.perenimi.local/");}],
+ ["Firefoxi enterprise_roots on väljas. Ava wp Firefoxis ja Edge'is.",()=>{$("f_ff").checked=true;$("all").click();setU("ff","https://wp.perenimi.local/");}],
+ ["Muuda sammu 2 SAN-nimekirjast blogi.perenimi.local ära, tee sammud uuesti ja ava blogi.",()=>{$("san_deb").value="www.perenimi.local, wp.perenimi.local, perenimi.local, debian.perenimi.local";$("all").click();setU("edge","https://blogi.perenimi.local/");}]];
+function setU(c,u){$("client").value=c;$("url").value=u;test();}
+$("tasks").innerHTML=TASKS.map((t,i)=>`<li>${t[0]} <button class="btn s" data-k="${i}">Lae</button></li>`).join("");
+document.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{["f_nosan","f_key","f_ff"].forEach(x=>$(x).checked=false);$("days").value=0;
+ $("san_deb").value="www.perenimi.local, wp.perenimi.local, blogi.perenimi.local, perenimi.local, debian.perenimi.local";reset();TASKS[b.dataset.k][1]();window.scrollTo({top:0,behavior:"smooth"});});
+reset();
+</script>
+</body>
+</html>

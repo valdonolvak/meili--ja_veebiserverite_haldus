@@ -26,6 +26,7 @@
 | [DNS-i simulaator](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/dns-simulaator.html) | Kes vastab: tsoonifail, vahemälu või edastaja; kirjetüübid; rikked (seerianumber, puuduv punkt, ACL) |
 | [Apache virtuaalhosti simulaator](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/apache-vhost-simulaator.html) | Millise saidi Apache valib (`Host:` päis, `ServerName`, vaikehost, HTTP→HTTPS, SNI) |
 | [E-kirja teekonna simulaator](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/e-kirja-simulaator.html) | SMTP vestlus samm-sammult, Postfixi piirangud, DKIM/SPF/DMARC; lülita sisse rikkeid ja vaata, kus ahel katkeb |
+| [Labori CA ja HTTPS simulaator](https://valdonolvak.github.io/meili--ja_veebiserverite_haldus/interaktiivne/ca-simulaator.html) | CA loomine, serdi väljastamine SAN-iga, juursert Windowsi/Ubuntusse; kliendi kontrollid (usaldus, kuupäev, nimi); rikked (SAN puudub, IP, aegunud sert, uus CA, vale võti, Firefox) |
 
 ## Sisukord
 
