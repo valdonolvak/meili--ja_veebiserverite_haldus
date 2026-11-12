@@ -70,7 +70,7 @@
 | „Error establishing a database connection“ | `wp-config.php` andmed, MariaDB maas, kaug-DB lukk kinni | käsurea test `mariadb -h … -u … -p` (7.6) |
 | Postitused annavad 404 | `rewrite` moodul või `AllowOverride All` puudub | `a2enmod rewrite`, vhost |
 | WordPress küsib FTP andmeid | `www-data` ei saa kirjutada | `chown -R www-data:www-data`, `FS_METHOD` |
-| HTTPS-il suunamiste ring / stiilid puuduvad | `siteurl` on `http://` | 8.6 |
+| HTTPS-il suunamiste ring / stiilid puuduvad | `siteurl` on `http://` | 8.12 |
 | `AH00526: Syntax error … Invalid command 'SSLEngine'` | `ssl` moodul puudub | `a2enmod ssl` |
 | `Invalid command 'Header'` | `headers` moodul puudub | `a2enmod headers` |
 | `configtest` viga rea lõpus oleva `#` tõttu | Apache ei luba rea-lõpu kommentaare | tõsta kommentaar eraldi reale |

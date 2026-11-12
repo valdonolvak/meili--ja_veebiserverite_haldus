@@ -6,7 +6,7 @@ Selles peatükis ehitame Ubuntu masinasse töötava meiliserveri: **Postfix** v�
 
 *Joonis 10.1: Postfixi ja Dovecoti koostöö*
 
-> **Eeldused:** Ubuntu hostinimi on `mail`, `hostname -f` annab `mail.perenimi.local` (2.6); DNS-is on `mail` A-, MX- ja PTR-kirje (3.6–3.7); serdid on paigaldatud (8.8). Kontrolli: `dig +short perenimi.local MX` → `10 mail.perenimi.local.`
+> **Eeldused:** Ubuntu hostinimi on `mail`, `hostname -f` annab `mail.perenimi.local` (2.6); DNS-is on `mail` A-, MX- ja PTR-kirje (3.6–3.7); serdid on paigaldatud (8.14). Kontrolli: `dig +short perenimi.local MX` → `10 mail.perenimi.local.`
 
 ### Mida selles peatükis ehitame
 
@@ -174,7 +174,7 @@ postconf -n | grep -E '^(myhostname|mydomain|mydestination|mynetworks|home_mailb
 
 ### 10.4 Postfix: TLS
 
-Ilma TLS-ita liigub SMTP võrgus avatekstina: igaüks, kes näeb võrguliiklust, loeb kirju ja – mis veel hullem – kasutajate paroole. TLS-i jaoks on Postfixil vaja sama serti, mis Apache'il ja Dovecotil (peatükk 8.8).
+Ilma TLS-ita liigub SMTP võrgus avatekstina: igaüks, kes näeb võrguliiklust, loeb kirju ja – mis veel hullem – kasutajate paroole. TLS-i jaoks on Postfixil vaja sama serti, mis Apache'il ja Dovecotil (peatükk 8.14).
 
 Postfixis on TLS-i jaoks **kaks seadete komplekti**:
 

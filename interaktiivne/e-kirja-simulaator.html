@@ -155,7 +155,7 @@ function build(c){
    END("bad","Roundcube'i sisselogimine ebaõnnestub: „Ühendus IMAP-serveriga ebaõnnestus“. Paketi vaikeseadistus ei sobi karmistatud serveriga – vaja on <code>ssl://mail.perenimi.local:993</code> (12.3).");return;}
   if(c.ca){S("rc","c","→ IMAP ssl://mail.perenimi.local:993","act");S("rc","s e","TLS: certificate verify failed (unable to get local issuer certificate)","bad");
    steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: … SSL operation failed … certificate verify failed",w:1});
-   END("bad","Roundcube ei usalda Dovecoti serti, sest Ubuntu ise ei usalda labori CA-d. Lahendus: <code>ca.crt</code> → <code>/usr/local/share/ca-certificates/</code> ja <code>update-ca-certificates</code> (8.8).");return;}
+   END("bad","Roundcube ei usalda Dovecoti serti, sest Ubuntu ise ei usalda labori CA-d. Lahendus: <code>ca.crt</code> → <code>/usr/local/share/ca-certificates/</code> ja <code>update-ca-certificates</code> (8.14).");return;}
   if(c.dovecot){S("rc","c","→ IMAP ssl://mail.perenimi.local:993","act");S("rc","s e","Connection refused – Dovecot ei tööta","bad");
    END("bad","Roundcube'i ei saa sisse logida, sest IMAP-server (Dovecot) on maas. <code>systemctl status dovecot</code>.");return;}
   S("rc","c","→ a1 LOGIN mari ••••••  (ssl://mail.perenimi.local:993)","act");

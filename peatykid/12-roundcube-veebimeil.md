@@ -96,7 +96,7 @@ Kontrolli PHP süntaksit:
 sudo php -l /etc/roundcube/config.inc.php      # No syntax errors detected
 ```
 
-> **Miks `mail.perenimi.local`, mitte `localhost`?** Roundcube kontrollib TLS-ühenduse serti nagu brauser: nimi peab olema SAN-is ja CA usaldatud. Ubuntu usaldab labori CA-d (8.8), seega ühendus valideerub. Kui CA pole paigaldatud, on `errors.log`-is `certificate verify failed`.
+> **Miks `mail.perenimi.local`, mitte `localhost`?** Roundcube kontrollib TLS-ühenduse serti nagu brauser: nimi peab olema SAN-is ja CA usaldatud. Ubuntu usaldab labori CA-d (8.14), seega ühendus valideerub. Kui CA pole paigaldatud, on `errors.log`-is `certificate verify failed`.
 
 | Seade | Mida teeb |
 | --- | --- |

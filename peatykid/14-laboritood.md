@@ -226,13 +226,13 @@ ls -l /var/www/wp.perenimi.local/wp-config.php  # -rw-r----- www-data www-data
 
 **Sammud:**
 
-1. Loo Debianis labori CA (8.2).
-2. Väljasta sert Debianile (SAN: www, wp, blogi, perenimi.local, debian) ja Ubuntule (SAN: mail, ubuntu) (8.3).
-3. Kopeeri failid `scp`-ga (8.4).
-4. Debian: paigalda sert, tee HTTPS vhostid HTTP → HTTPS suunamisega kõigile kolmele saidile (8.5).
-5. Muuda WordPressi aadressid `https://`-ks (8.6).
-6. Ubuntu: paigalda sert ja CA (8.8).
-7. Windowsi klient: impordi `ca.crt` *Trusted Root* hoidlasse (8.7).
+1. Loo Debianis labori CA (8.8).
+2. Väljasta sert Debianile (SAN: www, wp, blogi, perenimi.local, debian) ja Ubuntule (SAN: mail, ubuntu) (8.9).
+3. Kopeeri failid `scp`-ga (8.10).
+4. Debian: paigalda sert, tee HTTPS vhostid HTTP → HTTPS suunamisega kõigile kolmele saidile (8.11).
+5. Muuda WordPressi aadressid `https://`-ks (8.12).
+6. Ubuntu: paigalda sert ja CA (8.14).
+7. Windowsi klient: impordi `ca.crt` *Trusted Root* hoidlasse (8.13).
 8. Ava kõik saidid Windowsis, vaata serti (luku ikoon → *Connection is secure → Certificate is valid*): kes on väljastaja, millised nimed on SAN-is, millal kehtivus lõpeb?
 9. **Katse:** ava `https://192.168.XXX.10`. Milline hoiatus ja miks?
 
