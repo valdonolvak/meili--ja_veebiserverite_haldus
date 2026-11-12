@@ -6,6 +6,17 @@ Lõppeesmärk: Windowsi kliendis avad brauseris **`https://mail.perenimi.local`*
 
 *Joonis 12.1: Roundcube ühendub kasutaja nimel Dovecoti ja Postfixiga*
 
+#### Kuidas veebimeil töötab
+
+Roundcube on **PHP-rakendus**, mis töötab Ubuntu Apache'is. Kasutaja brauser räägib ainult Roundcube'iga (HTTPS). Kõik meiliga seotud tegevused teeb Roundcube kasutaja nimel ise:
+
+1. **Sisselogimine.** Kasutaja sisestab nime ja parooli. Roundcube **ei kontrolli parooli ise** – ta proovib nende andmetega Dovecoti IMAP-i sisse logida. Kui Dovecot lubab, on kasutaja sees. Roundcube hoiab parooli krüpteeritult sessioonis (`des_key` võtmega), sest vajab seda iga järgmise IMAP-päringu ja kirja saatmise jaoks.
+2. **Kirjade lugemine.** Iga kord, kui kasutaja avab kausta või kirja, teeb Roundcube IMAP-päringu. Kirjad jäävad Dovecoti postkasti; Roundcube hoiab ainult vahemälu.
+3. **Kirja saatmine.** Roundcube ühendub Postfixi pordile 587, teeb STARTTLS-i ja logib sisse **sama kasutaja ja parooliga** (`%u`, `%p`). Postfixi jaoks on Roundcube tavaline meiliklient nagu Thunderbird.
+4. **Saadetud kirja koopia.** Postfix ei pane saadetud kirja kuhugi. Roundcube salvestab koopia IMAP-iga kausta „Saadetud“ (*Sent*).
+
+Seepärast peavad enne Roundcube'i kõik peatüki 10 testid töötama: kui IMAP või port 587 ei tööta, ei tööta ka Roundcube.
+
 ### 12.1 Mõisted
 
 | Termin | Selgitus |
@@ -87,6 +98,19 @@ sudo php -l /etc/roundcube/config.inc.php      # No syntax errors detected
 
 > **Miks `mail.perenimi.local`, mitte `localhost`?** Roundcube kontrollib TLS-ühenduse serti nagu brauser: nimi peab olema SAN-is ja CA usaldatud. Ubuntu usaldab labori CA-d (8.8), seega ühendus valideerub. Kui CA pole paigaldatud, on `errors.log`-is `certificate verify failed`.
 
+| Seade | Mida teeb |
+| --- | --- |
+| `imap_host` | kuhu ja kuidas Roundcube IMAP-iga ühendub. `ssl://` = TLS kohe (993) |
+| `smtp_host` | kuhu Roundcube kirjad saatmiseks annab. `tls://` = STARTTLS (587) |
+| `smtp_user` / `smtp_pass` = `%u` / `%p` | Postfixi logitakse sisse sama kasutaja ja parooliga, millega Roundcube'i sisse logiti |
+| `username_domain` | kui kasutaja kirjutab ainult `mari`, lisatakse `@perenimi.local` |
+| `force_https` | HTTP-päring suunatakse HTTPS-ile ka siis, kui Apache seda ei teeks |
+| `login_autocomplete = 0` | brauser ei paku parooli salvestamist (ühiskasutatavad arvutid) |
+| `ip_check` | kui keegi varastab sessiooniküpsise, ei saa ta seda teisest IP-st kasutada |
+| `session_lifetime` | tegevusetuse aeg minutites, mille järel tuleb uuesti sisse logida |
+
+**Vahekontroll:** `sudo php -l /etc/roundcube/config.inc.php` → `No syntax errors detected`.
+
 ### 12.4 Apache virtuaalhost mail.perenimi.local
 
 Pakett lisab üldise aliase `/roundcube`, mis töötaks igal saidil. Meie tahame veebimeili **oma nimel**, seega keelame aliase ja teeme vhosti.
@@ -145,6 +169,8 @@ sudo a2ensite mail.perenimi.local
 sudo apache2ctl configtest
 sudo systemctl reload apache2
 ```
+
+**Miks eraldi vhost?** Nii on veebimeil oma nimel (`mail.perenimi.local`), oma serdiga ja oma logidega. Port 80 ainult suunab HTTPS-ile – parooli ei tohi kunagi HTTP-ga saata. Päised (`Strict-Transport-Security`, `X-Frame-Options` jt) kaitsevad tüüpiliste veebirünnakute eest: HSTS keelab brauseril HTTP-d kasutada, `X-Frame-Options` takistab Roundcube'i peitmist võõra lehe raami sisse (*clickjacking*).
 
 Roundcube 1.6 hoiab veebis nähtavaid faile kaustas `public_html` – seadistus, logid ja ajutised failid jäävad veebist väljapoole. `Require all denied` plokid on lisakaitse.
 

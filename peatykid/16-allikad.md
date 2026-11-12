@@ -15,6 +15,9 @@
 | Postfix | [Postfix documentation](https://www.postfix.org/documentation.html): `BASIC_CONFIGURATION_README`, `SASL_README`, `TLS_README`, `SMTPD_ACCESS_README`, `STANDARD_CONFIGURATION_README` (relayhost), `postconf(5)` |
 | Dovecot 2.3 | [Dovecot 2.3 documentation](https://doc.dovecot.org/2.3/) – **NB! uus doc.dovecot.org avaleht on 2.4 kohta** |
 | OpenDKIM | `man opendkim.conf`, [opendkim.org](http://www.opendkim.org/) |
+| PostfixAdmin | [PostfixAdmin (GitHub)](https://github.com/postfixadmin/postfixadmin), `/usr/share/doc/postfixadmin/` |
+| Postfix + SQL | [MYSQL_README](https://www.postfix.org/MYSQL_README.html), [VIRTUAL_README](https://www.postfix.org/VIRTUAL_README.html), [ADDRESS_CLASS_README](https://www.postfix.org/ADDRESS_CLASS_README.html), `man mysql_table` |
+| Dovecot + SQL | [Dovecot 2.3: SQL authentication](https://doc.dovecot.org/2.3/configuration_manual/authentication/sql/), [Password schemes](https://doc.dovecot.org/2.3/configuration_manual/authentication/password_schemes/) |
 | Roundcube | [Roundcube wiki: Configuration](https://github.com/roundcube/roundcubemail/wiki/Configuration) |
 | fail2ban | `man jail.conf`, [fail2ban wiki](https://github.com/fail2ban/fail2ban/wiki) |
 | Ubuntu netplan | [netplan documentation](https://netplan.readthedocs.io/) |

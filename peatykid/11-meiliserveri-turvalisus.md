@@ -22,6 +22,17 @@ SMTP-s võib igaüks kirjutada `MAIL FROM:<direktor@pank.ee>` ja `From: direktor
 | DNS-kirje | `perenimi.local TXT "v=spf1 …"` | `s1._domainkey.perenimi.local TXT "v=DKIM1; p=…"` | `_dmarc.perenimi.local TXT "v=DMARC1; …"` |
 | Nõrkus üksi | katkeb edasisaatmisel (*forward*) | ei ütle, mida teha, kui allkiri puudub | vajab SPF-i või DKIM-i |
 
+#### Kuidas DKIM-allkiri töötab – samm-sammult
+
+DKIM põhineb samal võtmepaari ideel nagu TLS-serdid (peatükk 8), kuid ilma CA-ta: avalik võti pannakse **DNS-i**.
+
+1. **Ettevalmistus (üks kord).** Genereerime võtmepaari. Privaatvõti jääb serverisse (`s1.private`), avalik võti läheb DNS-i kirjena `s1._domainkey.perenimi.local`.
+2. **Saatmine.** Mari saadab kirja. Postfix annab kirja OpenDKIM-ile (*milter*). OpenDKIM arvutab kirja sisust räsi (`bh=`), valib päised (`From`, `To`, `Subject`, `Date` …), arvutab neist allkirja privaatvõtmega (`b=`) ja lisab kirja päise `DKIM-Signature: d=perenimi.local; s=s1; …`.
+3. **Vastuvõtmine.** Saaja server loeb päisest `d=perenimi.local` ja `s=s1`, küsib DNS-ist `s1._domainkey.perenimi.local` avaliku võtme ja kontrollib allkirja.
+4. **Tulemus.** Kui allkiri klapib, on tõestatud kaks asja: kiri tuli kelleltki, kellel on `perenimi.local` privaatvõti, ja allkirjastatud osa pole teel muudetud. Saaja server lisab päise `Authentication-Results: … dkim=pass`.
+
+**Milter** (*mail filter*) on Postfixi liides väliste filtrite jaoks: Postfix saadab kirja filtrile, filter võib seda muuta (lisada päise), tagasi lükata või lasta läbi. OpenDKIM on milter; samamoodi töötavad rämpspostifiltrid ja viirusetõrje.
+
 ### 11.2 OpenDKIM paigaldus ja võti
 
 **Ubuntu:**
@@ -37,6 +48,10 @@ sudo chmod 700 /etc/opendkim/keys
 
 - `-s s1` – **selektor**: võtme nimi. Ühel domeenil võib olla mitu võtit (nt `s1`, `s2` võtmevahetuseks).
 - Tekivad failid `s1.private` (privaatvõti, jääb serverisse) ja `s1.txt` (DNS-kirje).
+- `-b 2048` – võtme pikkus. 1024 bitti peetakse tänapäeval nõrgaks; 2048 on standard. Pikem võti ei mahu ühte 255-märgilisse DNS TXT stringi – seepärast on `s1.txt` failis võti mitmeks osaks jagatud.
+- `chmod 700 keys` – privaatvõtit ei tohi keegi peale OpenDKIM-i lugeda: kes selle saab, saab allkirjastada kirju sinu domeeni nimel.
+
+**Vahekontroll:** `sudo ls -l /etc/opendkim/keys/perenimi.local/` → `s1.private` ja `s1.txt`, omanik `opendkim`.
 
 ### 11.3 OpenDKIM tabelid
 
@@ -126,6 +141,8 @@ sudo systemctl enable opendkim
 sudo ss -tlnp | grep 8891
 ```
 
+**Vahekontroll:** `sudo systemctl status opendkim` on `active (running)` ja `ss` näitab `127.0.0.1:8891`. Kui teenus ei käivitu, vaata `sudo journalctl -u opendkim -n 20` – sageli on põhjus vale õigus võtmefailil või kirjaviga tabelis.
+
 ### 11.5 Postfix kasutab OpenDKIM-i
 
 **Ubuntu:**
@@ -141,8 +158,18 @@ sudo systemctl reload postfix
 
 - `milter_default_action = accept` – kui OpenDKIM on maas, võetakse kirjad ikkagi vastu (allkirjata). Alternatiiv `tempfail` lükkab kirjad ajutiselt tagasi.
 - `non_smtpd_milters` – allkirjastatakse ka käsuga `mail`/`sendmail` saadetud kirjad.
+- `smtpd_milters = inet:127.0.0.1:8891` – iga `smtpd` kaudu tulnud kiri saadetakse OpenDKIM-ile. Kas OpenDKIM allkirjastab või kontrollib, otsustab ta ise: kui kiri tuleb `InternalHosts`-is loetletud IP-lt või sisseloginud (SASL) kasutajalt ja saatja domeen on `signing.table`-is → **allkirjastab**; muidu → **kontrollib** olemasolevat allkirja.
+- `milter_protocol = 6` – milteri protokolli versioon, mida OpenDKIM toetab.
+
+**Vahekontroll:** saada testkiri (10.10 test 4) ja vaata logist `grep opendkim /var/log/mail.log | tail -2` → `DKIM-Signature field added (s=s1, d=perenimi.local)`. Allkiri on olemas, kuigi DNS-i kirjet veel pole – kontrollija jaoks on see aga veel kasutu.
 
 ### 11.6 DNS-kirjed: SPF, DKIM, DMARC (Debian)
+
+Allkiri ja poliitika on kasutud, kui teised neid DNS-ist ei leia. Kõik kolm kirjet lähevad tsooni `perenimi.local` – BIND-i Debianis. Mõtle neist kui avalikest teadetest kogu maailmale:
+
+- **SPF:** „Minu domeeni nimel saadavad kirju ainult need IP-d.“
+- **DKIM:** „Siin on minu avalik võti – sellega saad kontrollida minu kirjade allkirju.“
+- **DMARC:** „Kui kiri väidab end olevat minu domeenist, aga ei läbi kontrolli, tee sellega nii – ja saada mulle aruanne.“
 
 Vaata Ubuntus DKIM-kirjet ja kopeeri see Debianisse:
 
@@ -230,7 +257,17 @@ Allkirja väljad: `d=` domeen, `s=` selektor, `h=` allkirjastatud päised, `bh=`
 
 ### 11.8 fail2ban
 
+Meiliserver, mille port 587 või 993 on internetis nähtav, saab mõne tunni jooksul esimesed paroolide äraarvamise katsed (*brute force*). Ründaja proovib tuhandeid levinud paroole tavaliste kasutajanimedega (`admin`, `info`, `test`). Iga katse läheb logisse, kuid ise ei takista Postfix ega Dovecot midagi.
+
 fail2ban loeb logisid ja blokeerib tulemüüris IP-aadressid, kust tuleb palju valesid paroole.
+
+**Kuidas fail2ban töötab:**
+
+1. **Filter** (regulaaravaldis, `/etc/fail2ban/filter.d/`) teab, milline logirida tähendab ebaõnnestunud sisselogimist ja kust sealt IP-aadress võtta.
+2. **Vangla** (*jail*) ütleb, millist logifaili millise filtriga jälgida ja kui palju vigu lubada: `maxretry = 5` vea korral `findtime = 10m` jooksul.
+3. **Tegevus** (*action*) – vaikimisi lisab fail2ban tulemüüri reegli, mis blokeerib selle IP `bantime = 1h` ajaks. Pärast seda reegel eemaldatakse automaatselt.
+
+Fail `jail.d/meiliserver.conf` kirjutab üle vaikeseadeid failist `jail.conf` (seda ei muudeta, sest paketiuuendus kirjutaks selle üle).
 
 **Ubuntu:**
 

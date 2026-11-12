@@ -43,9 +43,21 @@ Relay andmed annab õpetaja. Levinumad variandid:
 
 Allpool on näitena `[smtp.gmail.com]:587`. Kooli relay puhul asenda server, kasutaja ja parool.
 
+#### Kuidas relay käib – samm-sammult
+
+1. Mari saadab Roundcube'ist kirja aadressile `sober@gmail.com`. Postfix võtab selle pordil 587 vastu (nagu peatükis 10).
+2. `qmgr` näeb, et `gmail.com` pole `mydestination`-is → kiri tuleb edasi saata. Kuna `relayhost` on määratud, ei otsita `gmail.com` MX-kirjet, vaid kiri antakse **alati relay'le**.
+3. Postfixi `smtp` klient ühendub relay'ga pordil 587, teeb STARTTLS-i ja logib sisse failis `sasl_passwd` oleva kasutaja ja parooliga.
+4. Enne saatmist kirjutab `smtp_generic_maps` aadressid ümber: `mari@perenimi.local` → relay konto aadress. Muidu lükkaks relay kirja tagasi, sest see konto ei tohi saata võõra domeeni nimel.
+5. Relay võtab kirja vastu, allkirjastab oma domeeni DKIM-iga ja viib selle `gmail.com` MX-serverile.
+
+Kohalikud kirjad (`jaan@perenimi.local`) relay'sse ei lähe – need toimetatakse kohale nagu varem.
+
 ### 13.4 Eeldus: SASL moodulid
 
 Ubuntu **ei paigalda** Postfixiga koos SASL-i kliendimooduleid. Ilma nendeta ebaõnnestub sisselogimine relay'sse veaga `SASL authentication failure: No worthy mechs found`.
+
+Postfix kasutab SASL-i kahes suunas. **Serverina** (meie kasutajad logivad meie Postfixi) küsib ta paroolikontrolli Dovecotilt – selleks pole lisapaketti vaja. **Kliendina** (meie Postfix logib relay'sse) kasutab ta Cyrus SASL teeki ja selle mooduleid PLAIN ja LOGIN – need on paketis `libsasl2-modules`.
 
 **Ubuntu:**
 
@@ -72,6 +84,8 @@ sudo chmod 600 /etc/postfix/sasl_passwd
 sudo postmap /etc/postfix/sasl_passwd
 ls -l /etc/postfix/sasl_passwd*          # mõlemad -rw------- root
 ```
+
+`postmap` loob tekstifailist kiire andmebaasi `sasl_passwd.db`, mida Postfix tegelikult loeb. **Iga kord, kui `sasl_passwd` faili muudad, tuleb `postmap` uuesti käivitada** – muidu kasutab Postfix vana parooli. Fail sisaldab parooli avatekstina, seepärast `chmod 600`.
 
 ### 13.6 Aadresside ümberkirjutus
 
@@ -113,6 +127,14 @@ sudo postconf -e \
   'smtp_generic_maps = hash:/etc/postfix/generic'
 sudo postfix check
 sudo systemctl reload postfix
+```
+
+**Vahekontroll:**
+
+```bash
+postconf relayhost smtp_sasl_auth_enable smtp_tls_security_level
+postmap -q "[smtp.gmail.com]:587" hash:/etc/postfix/sasl_passwd     # kasutaja:parool
+nc -vz smtp.gmail.com 587                                           # succeeded – port on võrgust kättesaadav
 ```
 
 | Seade | Selgitus |

@@ -57,6 +57,8 @@
 | `DHCP4_DECLINE_LEASE` | klient leidis, et aadress on juba kasutusel | vahemik kattub staatiliste aadressidega |
 | `ipconfig /renew`: *unable to contact your DHCP server* | Kea maas; vana rent kehtib edasi | käivita Kea; `ipconfig /release` + `/renew` |
 
+> Andmebaasipõhise meiliserveri (Osa III) tõrkeotsing on peatükis [20.5](20-osa3-haldus-laborid-torkeotsing.md#205-tõrkeotsing).
+
 ### 15.5 Apache ja WordPress
 
 | Sümptom | Põhjus | Lahendus |

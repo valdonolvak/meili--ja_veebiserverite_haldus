@@ -17,6 +17,8 @@ Laborid on järjestikused: iga järgmine eeldab eelmise tulemust. Iga labori lõ
 | 11 | Väljaminev post relay kaudu | Ubuntu | 13 | 2 |
 | 12 | Tõrkeotsingu harjutus | kõik | 15 | 3 |
 
+Osa III (andmebaasipõhine meiliserver) laborid **13–15** on peatükis [20](20-osa3-haldus-laborid-torkeotsing.md#204-laboritööd).
+
 ---
 
 ### Labor 1. Linuxi serverite ettevalmistus

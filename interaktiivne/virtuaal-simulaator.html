@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtuaalpostkastide simulaator – Postfix, Dovecot, PostfixAdmin</title>
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--ink:#1f1e1c;--quiet:#6b6862;--line:#dcd9d2;--acc:#2f6fd6;--acc-t:#e8f0fc;--ok:#2e7d4f;--ok-t:#e5f3ea;--bad:#b3261e;--bad-t:#fbeae8;--warn:#9a6700;--warn-t:#fbf2dc;--mono:ui-monospace,Consolas,"DejaVu Sans Mono",monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b1a;--card:#252524;--ink:#ecebe8;--quiet:#a3a09a;--line:#3a3936;--acc:#7aa7f0;--acc-t:#24324a;--ok:#6cc08b;--ok-t:#1f3326;--bad:#f08a80;--bad-t:#3a2220;--warn:#e0b250;--warn-t:#3a311c}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:20px 24px 8px;max-width:1260px;margin:auto}
+header a{color:var(--acc)}
+h1{font-size:22px;margin:6px 0 4px}
+header p{margin:0;color:var(--quiet);max-width:920px}
+main{max-width:1260px;margin:auto;padding:12px 24px 40px;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:20px}
+@media (max-width:960px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 10px}
+table.t{border-collapse:collapse;width:100%;font:12.8px var(--mono);margin-bottom:10px}
+table.t th,table.t td{border:1px solid var(--line);padding:3px 5px;text-align:left;vertical-align:middle}
+table.t th{color:var(--quiet);font-weight:600}
+table.t input[type=text]{width:100%;font:12.8px var(--mono);border:0;background:transparent;color:var(--ink);padding:2px}
+table.t tr.off td{opacity:.5}
+.tn{font:700 13px var(--mono);margin:4px 0}
+.x{border:0;background:none;color:var(--bad);cursor:pointer;font-size:14px}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.s{font-size:12.5px;padding:2px 8px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+.tabs button.on{background:var(--acc-t);border-color:var(--acc);font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.row label{font-size:14px}
+input.in{font:14px var(--mono);padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:240px}
+.opt label{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:5px 0;cursor:pointer}
+.opt input{margin-top:4px}
+ol.steps{padding-left:0;list-style:none;margin:0}
+ol.steps li{border-left:3px solid var(--line);padding:5px 0 5px 12px;margin:6px 0;font-size:14px}
+ol.steps li.ok{border-color:var(--ok)} ol.steps li.bad{border-color:var(--bad)} ol.steps li.warn{border-color:var(--warn)} ol.steps li.act{border-color:var(--acc)}
+ol.steps li.ind{margin-left:22px}
+.sql{display:block;font:12.5px var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 7px;margin:4px 0;white-space:pre-wrap;word-break:break-all;color:var(--acc)}
+.r{font:12.5px var(--mono);color:var(--quiet)}
+.res{border-radius:8px;padding:10px 12px;font-size:14.5px;margin-top:8px}
+.res.ok{background:var(--ok-t);border:1px solid var(--ok)} .res.bad{background:var(--bad-t);border:1px solid var(--bad)} .res.warn{background:var(--warn-t);border:1px solid var(--warn)}
+.tasks li{margin:6px 0;font-size:14px}
+code{font-family:var(--mono);font-size:.92em}
+small{color:var(--quiet)}
+</style>
+</head>
+<body>
+<header>
+<a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
+<h1>Virtuaalpostkastide simulaator</h1>
+<p>Vasakul on PostfixAdmini andmebaasi kolm tabelit – muuda neid nagu veebiliideses. Paremal vali, mida server teeb: võtab kirja vastu, logib kasutaja sisse või kontrollib saatjat. Simulaator näitab iga SQL-päringut, mille Postfix või Dovecot teeb (peatükk 19), ja tulemust.</p>
+</header>
+<main>
+<section>
+<div class="card">
+<h2>Andmebaas <code>postfixadmin</code></h2>
+<div class="tn">domain</div><table class="t" id="t_domain"></table>
+<div class="tn">mailbox <small>(parool näidatud avatekstina ainult simulaatoris – päriselt on seal räsi {SHA512-CRYPT}$6$…)</small></div><table class="t" id="t_mailbox"></table>
+<div class="tn">alias <small>(goto: mitu aadressi komaga)</small></div><table class="t" id="t_alias"></table>
+<div class="row">
+<button class="btn s" id="addm">+ postkast (veebiliides)</button>
+<button class="btn s" id="adda">+ alias</button>
+<button class="btn s" id="addd">+ domeen</button>
+<button class="btn s" id="sqljaan" title="UPDATE mailbox SET active=0 WHERE username='jaan@perenimi.local'">SQL: jaan välja ainult mailbox-tabelis</button>
+<button class="btn s" id="reset">Algseis</button>
+</div>
+<p style="font-size:13.5px;color:var(--quiet);margin:6px 0 0">Nupp „+ postkast“ teeb sama mis PostfixAdmin: lisab rea tabelisse <code>mailbox</code> ja aliase iseendale. Linnuke „active“ postkasti real muudab nii postkasti kui ka selle aliase – nagu veebiliides. Aliase tabelis saad muuta ainult aliast – nagu otse SQL-iga.</p>
+</div>
+<div class="card opt">
+<h2>Serveri seadistus (rikked)</h2>
+<label><input type="checkbox" id="f_both"> <span><code>mydestination</code> sisaldab ka <code>$mydomain</code></span></label>
+<label><input type="checkbox" id="f_pw"> <span><code>.cf</code> failides vale <code>mail_lugeja</code> parool</span></label>
+<label><input type="checkbox" id="f_ln"> <span>Dovecot: <code>auth_username_format = %Ln</code> (Osa II väärtus)</span></label>
+</div>
+<div class="card">
+<h2>Ülesanded</h2>
+<ol class="tasks" id="tasks"></ol>
+</div>
+</section>
+<section>
+<div class="card">
+<div class="tabs"><button data-m="rcpt" class="on">Saabuv kiri (RCPT TO)</button><button data-m="login">Sisselogimine</button><button data-m="send">Saatja kontroll (587)</button></div>
+<div id="f_rcpt" class="row"><label>RCPT TO:</label><input class="in" id="rcpt" value="info@perenimi.local"></div>
+<div id="f_login" class="row" style="display:none"><label>kasutaja</label><input class="in" id="lu" value="mari@perenimi.local" style="min-width:200px"><label>parool</label><input class="in" id="lp" value="Mari.Parool.26" style="min-width:150px"></div>
+<div id="f_send" class="row" style="display:none"><label>sisse loginud</label><input class="in" id="su" value="jaan@perenimi.local" style="min-width:200px"><label>MAIL FROM</label><input class="in" id="sf" value="mari@perenimi.local" style="min-width:200px"></div>
+<div class="row"><button class="btn primary" id="go">Käivita</button></div>
+</div>
+<div class="card">
+<h2>Mis toimus?</h2>
+<ol class="steps" id="steps"><li>Vajuta „Käivita“.</li></ol>
+<div id="res"></div>
+</div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let mode="rcpt";
+const INIT={domain:[["perenimi.local",1],["pood.perenimi.local",1]],
+ mailbox:[["admin@perenimi.local","Admin.Parool.26","perenimi.local/admin/",1],["mari@perenimi.local","Mari.Parool.26","perenimi.local/mari/",1],["jaan@perenimi.local","Jaan.Parool.26","perenimi.local/jaan/",1],["myyk@pood.perenimi.local","Myyk.Parool.26","pood.perenimi.local/myyk/",1]],
+ alias:[["admin@perenimi.local","admin@perenimi.local",1],["mari@perenimi.local","mari@perenimi.local",1],["jaan@perenimi.local","jaan@perenimi.local",1],["myyk@pood.perenimi.local","myyk@pood.perenimi.local",1],
+  ["info@perenimi.local","mari@perenimi.local,jaan@perenimi.local",1],["postmaster@perenimi.local","admin@perenimi.local",1],["postmaster@pood.perenimi.local","admin@perenimi.local",1],["root@perenimi.local","admin@perenimi.local",1],["myyk-koopia@pood.perenimi.local","myyk@pood.perenimi.local,keegi@gmail.com",1]]};
+let DB;
+function reset(){DB=JSON.parse(JSON.stringify(INIT));draw();}
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+function draw(){
+ $("t_domain").innerHTML="<tr><th>domain</th><th>active</th><th></th></tr>"+DB.domain.map((r,i)=>`<tr class="${r[1]?"":"off"}"><td><input type=text data-t=domain data-i=${i} data-c=0 value="${esc(r[0])}"></td><td><input type=checkbox data-t=domain data-i=${i} data-c=1 ${r[1]?"checked":""}></td><td><button class="x" data-del="domain" data-i=${i}>✕</button></td></tr>`).join("");
+ $("t_mailbox").innerHTML="<tr><th>username</th><th>password</th><th>maildir</th><th>active</th><th></th></tr>"+DB.mailbox.map((r,i)=>`<tr class="${r[3]?"":"off"}"><td><input type=text data-t=mailbox data-i=${i} data-c=0 value="${esc(r[0])}"></td><td><input type=text data-t=mailbox data-i=${i} data-c=1 value="${esc(r[1])}"></td><td><input type=text data-t=mailbox data-i=${i} data-c=2 value="${esc(r[2])}"></td><td><input type=checkbox data-t=mailbox data-i=${i} data-c=3 ${r[3]?"checked":""}></td><td><button class="x" data-del="mailbox" data-i=${i}>✕</button></td></tr>`).join("");
+ $("t_alias").innerHTML="<tr><th>address</th><th>goto</th><th>active</th><th></th></tr>"+DB.alias.map((r,i)=>`<tr class="${r[2]?"":"off"}"><td><input type=text data-t=alias data-i=${i} data-c=0 value="${esc(r[0])}"></td><td><input type=text data-t=alias data-i=${i} data-c=1 value="${esc(r[1])}"></td><td><input type=checkbox data-t=alias data-i=${i} data-c=2 ${r[2]?"checked":""}></td><td><button class="x" data-del="alias" data-i=${i}>✕</button></td></tr>`).join("");
+ document.querySelectorAll("table.t input").forEach(e=>e.onchange=()=>{const t=e.dataset.t,i=+e.dataset.i,c=+e.dataset.c;
+  const v=e.type==="checkbox"?(e.checked?1:0):e.value.trim();
+  if(t==="mailbox"&&c===3){const u=DB.mailbox[i][0];DB.alias.forEach(a=>{if(a[0]===u)a[2]=v;});}  // nagu veebiliides
+  if(t==="mailbox"&&c===0){const old=DB.mailbox[i][0];DB.alias.forEach(a=>{if(a[0]===old){a[0]=v;a[1]=a[1]===old?v:a[1];}});}
+  DB[t][i][c]=v;draw();});
+ document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const t=b.dataset.del,i=+b.dataset.i;
+  if(t==="mailbox"){const u=DB.mailbox[i][0];DB.alias=DB.alias.filter(a=>a[0]!==u);}DB[t].splice(i,1);draw();});
+}
+$("addm").onclick=()=>{const u=prompt("Uue postkasti aadress","kati@perenimi.local");if(!u||!u.includes("@"))return;const [l,d]=u.toLowerCase().split("@");
+ if(!DB.domain.some(r=>r[0]===d)){alert("Domeeni "+d+" pole tabelis domain – PostfixAdmin ei lase sellesse postkasti luua.");return;}
+ DB.mailbox.push([u.toLowerCase(),"Uus.Parool.26",d+"/"+l+"/",1]);DB.alias.push([u.toLowerCase(),u.toLowerCase(),1]);draw();};
+$("adda").onclick=()=>{DB.alias.push(["uus@perenimi.local","mari@perenimi.local",1]);draw();};
+$("addd").onclick=()=>{DB.domain.push(["uus.perenimi.local",1]);draw();};
+$("reset").onclick=reset;
+$("sqljaan").onclick=()=>{const r=DB.mailbox.find(x=>x[0]==="jaan@perenimi.local");if(r)r[3]=0;draw();};
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
+ ["rcpt","login","send"].forEach(m=>$("f_"+m).style.display=m===mode?"flex":"none");$("steps").innerHTML="<li>Vajuta „Käivita“.</li>";$("res").innerHTML="";});
+// --- SQL abifunktsioonid ---
+let S=[];
+const li=(cls,html,ind)=>S.push(`<li class="${cls}${ind?" ind":""}">${html}</li>`);
+const sqlq=q=>`<span class="sql">${esc(q)}</span>`;
+function q(table,sql,fn){ if($("f_pw").checked) throw {db:true}; return fn(); }
+function qDomain(d){return q("domain",`SELECT domain FROM domain WHERE domain='${d}' AND active = '1'`,()=>DB.domain.find(r=>r[0]===d&&r[1]));}
+function qAlias(a){return q("alias","",()=>DB.alias.find(r=>r[0]===a&&r[2]));}
+function qMailbox(u){return q("mailbox","",()=>DB.mailbox.find(r=>r[0]===u&&r[3]));}
+const out=(cls,html)=>{$("res").innerHTML=`<div class="res ${cls}">${html}</div>`;};
+function rcpt(){
+ const a=$("rcpt").value.trim().toLowerCase();const dom=a.split("@")[1]||"";
+ li("act",`Postfix saab <code>RCPT TO:&lt;${esc(a)}&gt;</code>`);
+ if($("f_both").checked&&(dom==="perenimi.local")){
+  li("bad",`Domeen on <code>mydestination</code>-is → <b>local-klass</b>. Logis: <span class="r">warning: do not list domain perenimi.local in BOTH mydestination and virtual_mailbox_domains</span>`);
+  li("bad","Postfix otsib Linuxi kasutajat (/etc/passwd), mitte andmebaasi postkasti.");
+  out("bad",`<b>550 5.1.1 &lt;${esc(a)}&gt;: Recipient address rejected: User unknown in local recipient table</b> – või kiri läheb vanasse <code>/home/…/Maildir</code>-i. Eemalda <code>$mydomain</code> <code>mydestination</code>-ist (19.5).`);return;}
+ try{
+  li("act",`<b>1 · virtual_mailbox_domains</b> (domeenid.cf)`+sqlq(`SELECT domain FROM domain WHERE domain='${dom}' AND active = '1'`));
+  if(!qDomain(dom)){li("warn",`<span class="r">tühi vastus</span> → domeen pole meie oma. Kehtivad relee reeglid (10.5).`);
+   out("bad",`<b>554 5.7.1 &lt;${esc(a)}&gt;: Relay access denied</b> – välja saata tohib ainult sisseloginud kasutaja (pordil 587). Kui see oli meie domeen, lisa see PostfixAdminis (ja enne DNS-i).`);return;}
+  li("ok",`<span class="r">→ ${esc(dom)}</span> – domeen on meie hallata.`);
+  const final=[],bounced=[],external=[];
+  function resolve(addr,depth,seen){
+   const ind=depth>0;
+   li("act",`<b>2 · virtual_alias_maps</b> (aliased.cf) <code>${esc(addr)}</code>`+sqlq(`SELECT goto FROM alias WHERE address='${addr}' AND active = '1'`),ind);
+   const al=qAlias(addr);
+   if(al){const tg=al[1].split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+    if(tg.length===1&&tg[0]===addr){li("ok",`<span class="r">→ ${esc(addr)}</span> (alias iseendale – PostfixAdmini muster). Edasi postkasti kontrolli.`,ind);}
+    else{li("warn",`<span class="r">→ ${esc(al[1])}</span> – aadress asendatakse ${tg.length} saajaga; iga saaja kontroll algab otsast.`,ind);
+     if(depth>4){li("bad","Liiga sügav aliaste ahel (silmus?)",ind);return;}
+     tg.forEach(t=>{if(seen.has(t)&&t!==addr){li("warn",`${esc(t)} juba töödeldud`,true);return;}seen.add(t);
+      const td=t.split("@")[1]||"";let isOur=false;try{isOur=!!qDomain(td);}catch(e){throw e;}
+      if(!isOur){li("act",`<code>${esc(t)}</code> – välisdomeen → kiri saadetakse välja (relayhost, peatükk 13).`,true);external.push(t);return;}
+      if(t===addr){checkMb(t,depth+1);}else resolve(t,depth+1,seen);});
+     return;}
+   } else li("act",`<span class="r">tühi vastus</span> – aktiivset aliast pole.`,ind);
+   checkMb(addr,depth,!!al);
+  }
+  function checkMb(addr,depth,hadAlias){
+   const ind=depth>0;
+   li("act",`<b>3 · virtual_mailbox_maps</b> (postkastid.cf) <code>${esc(addr)}</code>`+sqlq(`SELECT maildir FROM mailbox WHERE username='${addr}' AND active = '1'`),ind);
+   const mb=qMailbox(addr);
+   if(!mb){
+    if(hadAlias){li("bad",`<span class="r">tühi vastus</span>, AGA alias oli aktiivne → Postfix võtab kirja vastu (aadress on aliaste tabelis olemas). Dovecot lükkab selle hiljem tagasi.`,ind);bounced.push(addr);}
+    else{li("bad",`<span class="r">tühi vastus</span> – sellist postkasti pole.`,ind);final.push({addr,rej:true});}
+    return;}
+   li("ok",`<span class="r">→ ${esc(mb[2])}</span>`,ind);final.push({addr,mb});
+  }
+  resolve(a,0,new Set([a]));
+  const rej=final.filter(f=>f.rej),ok=final.filter(f=>!f.rej);
+  if(rej.length&&!ok.length&&!bounced.length&&!external.length){out("bad",`<b>550 5.1.1 &lt;${esc(a)}&gt;: Recipient address rejected: User unknown in virtual mailbox table</b> – saatja saab vea kohe SMTP-vestluse ajal.`);return;}
+  li("ok",`<b>250 2.1.5 Ok</b> – kiri võetakse vastu.`);
+  ok.forEach(f=>{li("act",`<b>4 · virtual_transport = lmtp</b> → Dovecot küsib <code>${esc(f.addr)}</code> postkasti`+sqlq(`SELECT CONCAT('/var/vmail/', maildir) AS home, 5000 AS uid, 5000 AS gid FROM mailbox WHERE username = '${f.addr}' AND active = '1'`),true);
+   li("ok",`<span class="r">home=/var/vmail/${esc(f.mb[2])} uid=5000</span> → kiri kirjutatakse kausta <code>/var/vmail/${esc(f.mb[2])}new/</code>`,true);});
+  bounced.forEach(b=>{li("act",`<b>4 · lmtp</b> → Dovecot <code>user_query</code> ${esc(b)}`+sqlq(`SELECT CONCAT('/var/vmail/', maildir) AS home, … WHERE username = '${b}' AND active = '1'`),true);
+   li("bad",`<span class="r">tühi vastus</span> → Dovecot: <span class="r">550 5.1.1 &lt;${esc(b)}&gt; User doesn't exist</span> → Postfix: <span class="r">status=bounced</span> → saatjale tagastusteade.`,true);});
+  let msg=[];if(ok.length)msg.push(`Kiri jõudis postkasti${ok.length>1?"desse":"sse"}: ${ok.map(f=>"<code>"+esc(f.addr)+"</code>").join(", ")}.`);
+  if(external.length)msg.push(`Koopia läheb välja: ${external.map(e=>"<code>"+esc(e)+"</code>").join(", ")}.`);
+  if(bounced.length)msg.push(`<b>Backscatter:</b> ${bounced.map(e=>"<code>"+esc(e)+"</code>").join(", ")} – kiri võeti vastu ja lükati alles hiljem tagasi. Põhjus: postkast on välja lülitatud, aga alias mitte (muudetud otse SQL-iga). Veebiliides muudab mõlemad.`);
+  out(bounced.length?"warn":"ok",msg.join(" "));
+ }catch(e){if(e.db){dbFail();}else throw e;}
+}
+function dbFail(){li("bad",`proxymap → MariaDB: <span class="r">warning: connect to mysql server localhost: Access denied for user 'mail_lugeja'@'localhost'</span>`);
+ out("bad",`<b>451 4.3.0 Temporary lookup failure</b> – Postfix ei saa andmebaasist vastust. Saatja server proovib hiljem uuesti; kirju ei kao, aga keegi ei saa ka midagi. Kontrolli <code>mariadb -u mail_lugeja -p</code> ja <code>.cf</code> failide parooli.`);}
+function login(){
+ const raw=$("lu").value.trim(),pw=$("lp").value;
+ li("act",`Klient (Roundcube/Thunderbird) logib sisse: <code>${esc(raw)}</code>`);
+ const u=$("f_ln").checked?raw.split("@")[0].toLowerCase():raw.toLowerCase();
+ li($("f_ln").checked?"warn":"ok",`<code>auth_username_format = ${$("f_ln").checked?"%Ln":"%Lu"}</code> → <code>%u</code> = <code>${esc(u)}</code>`);
+ li("act",`<b>passdb</b> (dovecot-sql.conf.ext)`+sqlq(`SELECT username AS user, password FROM mailbox WHERE username = '${u}' AND active = '1'`));
+ if($("f_pw").checked){li("bad",`<span class="r">Error: sql: Access denied for user 'mail_lugeja'@'localhost'</span>`);out("bad","Sisselogimine ebaõnnestub kõigil – Dovecot ei saa andmebaasiga ühendust (<code>dovecot-sql.conf.ext</code> → <code>connect</code>).");return;}
+ const mb=DB.mailbox.find(r=>r[0]===u&&r[3]);
+ if(!mb){li("bad",`<span class="r">tühi vastus</span> → <span class="r">auth failed … unknown user</span>`);
+  out("bad",$("f_ln").checked&&raw.includes("@")?`Dovecot otsib kasutajat <code>${esc(u)}</code>, aga andmebaasis on <code>${esc(raw.toLowerCase())}</code>. <code>%Ln</code> lõikab domeeni ära – Osa III-s peab olema <code>%Lu</code> (19.6).`:`Sellist aktiivset postkasti pole. Kas kasutajanimi on täisaadress? Kas postkast on aktiivne?`);return;}
+ li("act",`<span class="r">→ {SHA512-CRYPT}$6$…</span> Dovecot räsib sisestatud parooli sama soolaga ja võrdleb.`);
+ if(mb[1]!==pw){li("bad","räsid ei klapi → <span class=\"r\">auth failed … Password mismatch</span>");out("bad","Vale parool. fail2ban loeb neid ridu (11.8).");return;}
+ li("ok","räsid klapivad → <b>passdb OK</b>");
+ li("act",`<b>userdb</b>`+sqlq(`SELECT CONCAT('/var/vmail/', maildir) AS home, 5000 AS uid, 5000 AS gid FROM mailbox WHERE username = '${u}' AND active = '1'`));
+ li("ok",`<span class="r">home=/var/vmail/${esc(mb[2])}</span> → IMAP avab selle postkasti.`);
+ out("ok",`<b>a1 OK Logged in</b> – sama parool kehtib ka SMTP AUTH-iks pordil 587 (Postfix küsib Dovecotilt).`);
+}
+function send(){
+ const u=$("su").value.trim().toLowerCase(),f=$("sf").value.trim().toLowerCase();
+ li("act",`Sisse loginud <code>${esc(u)}</code> annab <code>MAIL FROM:&lt;${esc(f)}&gt;</code>`);
+ try{
+  li("act",`<b>smtpd_sender_login_maps</b> (saatjad.cf)`+sqlq(`SELECT username FROM mailbox WHERE username='${f}' AND active = '1'`));
+  const r=qMailbox(f);
+  if(!r){li("bad",`<span class="r">tühi vastus</span> – sellel aadressil pole omanikku.`);out("bad",`<b>553 5.7.1 &lt;${esc(f)}&gt;: Sender address rejected: not owned by user ${esc(u)}</b> – aliase (nt <code>info@</code>) nimel saata ei saa; see on teadlik valik.`);return;}
+  li("act",`<span class="r">→ ${esc(r[0])}</span> – see on ainus, kes tohib seda saatja aadressi kasutada.`);
+  if(r[0]!==u){li("bad",`Sisselogija <code>${esc(u)}</code> ≠ <code>${esc(r[0])}</code>`);out("bad",`<b>553 5.7.1 &lt;${esc(f)}&gt;: Sender address rejected: not owned by user ${esc(u)}</b> – reject_sender_login_mismatch.`);return;}
+  li("ok","Sisselogija ja saatja klapivad.");out("ok","<b>250 2.1.0 Ok</b> – saatmine lubatud.");
+ }catch(e){if(e.db)dbFail();else throw e;}
+}
+$("go").onclick=()=>{S=[];$("res").innerHTML="";({rcpt,login,send})[mode]();$("steps").innerHTML=S.join("");};
+const TASKS=[
+ ["Kiri aliasele info@perenimi.local. Mitu SQL-päringut tehti ja mis järjekorras?",()=>{setMode("rcpt");$("rcpt").value="info@perenimi.local";}],
+ ["Kiri olematu@perenimi.local. Millal saatja vea saab?",()=>{setMode("rcpt");$("rcpt").value="olematu@perenimi.local";}],
+ ["Kiri postmaster@pood.perenimi.local. Kuhu see jõuab?",()=>{setMode("rcpt");$("rcpt").value="postmaster@pood.perenimi.local";}],
+ ["Kiri myyk-koopia@pood.perenimi.local. Mis juhtub välise aadressiga?",()=>{setMode("rcpt");$("rcpt").value="myyk-koopia@pood.perenimi.local";}],
+ ["Võta Jaani postkasti real „active“ maha (nagu veebiliides) ja saada talle kiri. Siis vajuta „Algseis“ ja nuppu „SQL: jaan välja ainult mailbox-tabelis“ ja saada uuesti. Mis vahe?",()=>{setMode("rcpt");$("rcpt").value="jaan@perenimi.local";}],
+ ["Lisa nupuga postkast kati@perenimi.local ja logi kohe sisse (parool Uus.Parool.26). Kas Postfixi või Dovecoti pidi taaskäivitama?",()=>{setMode("login");$("lu").value="kati@perenimi.local";$("lp").value="Uus.Parool.26";}],
+ ["Lülita sisse %Ln ja logi Marina sisse. Miks ei õnnestu?",()=>{setMode("login");$("f_ln").checked=true;$("lu").value="mari@perenimi.local";$("lp").value="Mari.Parool.26";}],
+ ["Jaan proovib saata Mari nimel. Ja info@ nimel?",()=>{setMode("send");$("su").value="jaan@perenimi.local";$("sf").value="mari@perenimi.local";}],
+ ["Lülita sisse „mydestination sisaldab $mydomain“ ja saada kiri mari@-le.",()=>{setMode("rcpt");$("f_both").checked=true;$("rcpt").value="mari@perenimi.local";}],
+ ["Lülita sisse vale mail_lugeja parool. Mis juhtub kirja ja sisselogimisega?",()=>{setMode("rcpt");$("f_pw").checked=true;$("rcpt").value="mari@perenimi.local";}]];
+function setMode(m){document.querySelector(`.tabs button[data-m=${m}]`).click();}
+$("tasks").innerHTML=TASKS.map((t,i)=>`<li>${t[0]} <button class="btn s" data-k="${i}">Lae</button></li>`).join("");
+document.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{["f_both","f_pw","f_ln"].forEach(x=>$(x).checked=false);reset();TASKS[b.dataset.k][1]();$("go").click();window.scrollTo({top:0,behavior:"smooth"});});
+reset();
+</script>
+</body>
+</html>

@@ -83,6 +83,12 @@ Labor töötab **Proxmox VE** keskkonnas. Igal õppijal on oma **SDN vnet** (*So
 | 13 | Väljaminev post internetti relay kaudu | Ubuntu |
 | 14 | Laboritööd 1–12 | – |
 | 15 | Tõrkeotsing ja käskude spikker | – |
+| 16 | Allikad | – |
+| **Osa III** | **Andmebaasipõhine meiliserver** | |
+| 17 | Põhimõtted: virtuaaldomeenid ja -postkastid | – |
+| 18 | PostfixAdmin: andmebaas ja veebiliides | Ubuntu (+ Debian DNS) |
+| 19 | Postfix ja Dovecot MariaDB-ga | Ubuntu |
+| 20 | Haldus, laborid 13–15, tõrkeotsing | Ubuntu |
 
 Interaktiivsed harjutused (DHCP, DNS, Apache virtuaalhosti valik, e-kirja teekond ja rikked) on kaustas [`interaktiivne/`](../interaktiivne/index.html).
 
