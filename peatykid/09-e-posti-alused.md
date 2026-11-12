@@ -1,12 +1,12 @@
-## 8. E-posti alused
+## 9. E-posti alused
 
 Enne meiliserveri seadistamist on vaja aru saada, **kes mida teeb**. E-post ei ole üks programm, vaid mitme programmi koostöö – ja enamik vigu tekib nende vahelistes liidestes.
 
 ![Ühe e-kirja teekond](joonised/08-e-posti-teekond.png)
 
-*Joonis 8.1: E-kirja teekond saatjalt saajani*
+*Joonis 9.1: E-kirja teekond saatjalt saajani*
 
-### 8.1 Rollid
+### 9.1 Rollid
 
 | Lühend | Nimi | Ülesanne | Laboris |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Enne meiliserveri seadistamist on vaja aru saada, **kes mida teeb**. E-post ei o
 | IMAP/POP3 server | – | annab kliendile ligipääsu postkastile | Dovecot IMAP |
 | Milter | *Mail filter* | väline filter, mida MTA kirja töötlemisel küsib | OpenDKIM |
 
-### 8.2 Protokollid ja pordid
+### 9.2 Protokollid ja pordid
 
 | Port | Protokoll | Suund | Krüpteerimine | Autentimine | Laboris |
 | --- | --- | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ Enne meiliserveri seadistamist on vaja aru saada, **kes mida teeb**. E-post ei o
 
 > **Miks port 25 ei nõua parooli?** Port 25 on teiste serverite jaoks, kes toovad **sinu domeeni** kirju. Nemad parooli ei tea. Seepärast tohib port 25 vastu võtta ainult kirju sinu enda domeeni aadressidele – muidu oleks server **avatud relee** (*open relay*), mida spämmerid kohe kasutama hakkavad.
 
-### 8.3 Ümbrik ja päised
+### 9.3 Ümbrik ja päised
 
 Kiri koosneb kahest osast – nagu paberkiri ümbrikus:
 
@@ -48,11 +48,11 @@ Kiri koosneb kahest osast – nagu paberkiri ümbrikus:
 
 Ümbriku saatja nimetatakse ka *Return-Path*, *envelope sender*, *bounce address*. Saaja serveris lisatakse see päisena `Return-Path:`.
 
-### 8.4 SMTP vestlus
+### 9.4 SMTP vestlus
 
 ![SMTP vestlus pordil 587](joonised/08-smtp-dialoog.png)
 
-*Joonis 8.2: SMTP käsud ja vastuskoodid*
+*Joonis 9.2: SMTP käsud ja vastuskoodid*
 
 | Kood | Tähendus | Näide |
 | --- | --- | --- |
@@ -63,7 +63,7 @@ Kiri koosneb kahest osast – nagu paberkiri ümbrikus:
 
 Laiendatud kood (`5.7.1`) täpsustab: x.1.x = aadress, x.2.x = postkast, x.7.x = turvalisus/poliitika.
 
-SMTP-d saab „rääkida“ ka käsitsi. Pärast peatükki 9 proovi Ubuntu peal:
+SMTP-d saab „rääkida“ ka käsitsi. Pärast peatükki 10 proovi Ubuntu peal:
 
 ```bash
 openssl s_client -starttls smtp -connect mail.perenimi.local:587 -crlf -quiet
@@ -76,13 +76,13 @@ QUIT
 
 `EHLO` vastuses näed serveri võimekusi (`250-AUTH PLAIN LOGIN`, `250-SIZE 26214400` …).
 
-### 8.5 E-postiga seotud DNS-kirjed
+### 9.5 E-postiga seotud DNS-kirjed
 
 | Kirje | Nimi | Näide | Milleks |
 | --- | --- | --- | --- |
 | MX | `perenimi.local` | `10 mail.perenimi.local.` | kuhu saata `@perenimi.local` kirjad |
-| A | `mail.perenimi.local` | `10.0.XXX.30` | MX-i nime IP |
-| PTR | `30.XXX.0.10.in-addr.arpa` | `mail.perenimi.local.` | IP → nimi; peab ühtima HELO-ga |
+| A | `mail.perenimi.local` | `192.168.XXX.20` | MX-i nime IP |
+| PTR | `30.XXX.168.192.in-addr.arpa` | `mail.perenimi.local.` | IP → nimi; peab ühtima HELO-ga |
 | TXT (SPF) | `perenimi.local` | `v=spf1 mx -all` | millised IP-d tohivad selle domeeni nimel saata |
 | TXT (DKIM) | `s1._domainkey.perenimi.local` | `v=DKIM1; k=rsa; p=MIIB…` | avalik võti allkirjade kontrolliks |
 | TXT (DMARC) | `_dmarc.perenimi.local` | `v=DMARC1; p=quarantine; …` | mida teha, kui SPF/DKIM ei klapi |
@@ -95,14 +95,14 @@ Kui saatev server tahab saata kirja aadressile `jaan@naaber.ee`:
 
 Kui MX-kirjet pole, kasutatakse domeeni A-kirjet (*implicit MX*).
 
-### 8.6 Postkasti vorming
+### 9.6 Postkasti vorming
 
 | Vorming | Kuidas hoitakse | Laboris |
 | --- | --- | --- |
 | mbox | kõik kirjad ühes failis (`/var/mail/mari`) | ei – fail läheb suureks, lukustamine |
 | **Maildir** | **iga kiri eraldi fail** kaustades `new/`, `cur/`, `tmp/`; alamkaustad `.Sent/`, `.Trash/` | **jah**: `/home/mari/Maildir/` |
 
-### 8.7 Kasutajad
+### 9.7 Kasutajad
 
 Meie laboris on meilikasutajad **Linuxi süsteemikasutajad** Ubuntu masinas: kasutaja `mari` → aadress `mari@perenimi.local`, postkast `/home/mari/Maildir`. Neil pole shelli (`/usr/sbin/nologin`) – SSH-ga nad sisse ei saa, ainult meili.
 

@@ -1,12 +1,12 @@
-## 5. WordPress samas masinas (LAMP, Debian1)
+## 6. WordPress samas masinas (LAMP, Debian)
 
-**LAMP** = **L**inux + **A**pache + **M**ariaDB/MySQL + **P**HP. See on klassikaline veebirakenduse pinu: Apache võtab päringu vastu, PHP käivitab rakenduse koodi ja koodi andmed on MariaDB andmebaasis. Selles peatükis paigaldame WordPressi saidile `wp.perenimi.local` nii, et andmebaas on **samas masinas** (Debian1).
+**LAMP** = **L**inux + **A**pache + **M**ariaDB/MySQL + **P**HP. See on klassikaline veebirakenduse pinu: Apache võtab päringu vastu, PHP käivitab rakenduse koodi ja koodi andmed on MariaDB andmebaasis. Selles peatükis paigaldame WordPressi saidile `wp.perenimi.local` nii, et andmebaas on **samas masinas** (Debian).
 
 ![WordPressi päring LAMP-pinus](joonised/05-lamp-paring.png)
 
-*Joonis 5.1: Ühe WordPressi päringu teekond*
+*Joonis 6.1: Ühe WordPressi päringu teekond*
 
-### 5.1 Mõisted
+### 6.1 Mõisted
 
 | Termin | Selgitus | Näide laboris |
 | --- | --- | --- |
@@ -15,15 +15,15 @@
 | PHP laiendus | Lisamoodul: `php-mysql` (andmebaas), `php-gd` (pildid), `php-xml`, `php-mbstring`, `php-zip`, `php-intl`. | |
 | MariaDB | MySQL-iga ühilduv andmebaasiserver. | 11.8 |
 | Andmebaas | Tabelite kogum ühe rakenduse jaoks. | `wp_db` |
-| Andmebaasi kasutaja | Konto kujul `'nimi'@'host'` – **host on osa nimest**: `'wp'@'localhost'` ja `'wp'@'10.0.XXX.10'` on kaks eri kasutajat. | `'wp_kasutaja'@'localhost'` |
+| Andmebaasi kasutaja | Konto kujul `'nimi'@'host'` – **host on osa nimest**: `'wp'@'localhost'` ja `'wp'@'192.168.XXX.10'` on kaks eri kasutajat. | `'wp_kasutaja'@'localhost'` |
 | `GRANT` | Õiguste andmine. Anna ainult oma andmebaasile, mitte `*.*`. | `GRANT ALL ON wp_db.*` |
 | unix_socket autentimine | MariaDB `root` logib sisse ilma paroolita, kui oled Linuxis root (`sudo mariadb`). | |
 | `wp-config.php` | WordPressi seadistus: andmebaasi andmed, turvavõtmed. | |
 | Püsiviide (*permalink*) | Ilus URL `/2026/11/uudis/` asemel `/?p=123`; vajab `mod_rewrite` ja `.htaccess`. | |
 
-### 5.2 PHP ja MariaDB paigaldus
+### 6.2 PHP ja MariaDB paigaldus
 
-**Debian1:**
+**Debian:**
 
 ```bash
 sudo apt install -y mariadb-server \
@@ -42,9 +42,9 @@ curl -s -H "Host: wp.perenimi.local" http://127.0.0.1/info.php | grep -o "PHP Ve
 sudo rm /var/www/wp.perenimi.local/info.php       # ära jäta phpinfo lehte serverisse!
 ```
 
-### 5.3 MariaDB turvamine
+### 6.3 MariaDB turvamine
 
-**Debian1:**
+**Debian:**
 
 ```bash
 sudo mariadb-secure-installation
@@ -60,9 +60,9 @@ sudo mariadb-secure-installation
 | Remove test database | **Y** | |
 | Reload privilege tables | **Y** | |
 
-### 5.4 Andmebaas ja kasutaja
+### 6.4 Andmebaas ja kasutaja
 
-**Debian1:**
+**Debian:**
 
 ```bash
 sudo mariadb
@@ -82,9 +82,9 @@ EXIT;
 
 Kontroll: `mariadb -u wp_kasutaja -p wp_db -e "SELECT 1;"`.
 
-### 5.5 WordPressi failid
+### 6.5 WordPressi failid
 
-**Debian1:**
+**Debian:**
 
 ```bash
 cd /tmp
@@ -96,9 +96,9 @@ sudo cp -a wordpress/. /var/www/wp.perenimi.local/
 
 `wordpress/.` (punktiga) kopeerib ka peidetud failid. Kui laboris internetti pole, too `latest.tar.gz` õpetaja kaustast või Windowsi kliendist `scp`-ga.
 
-### 5.6 wp-config.php
+### 6.6 wp-config.php
 
-**Debian1:**
+**Debian:**
 
 ```bash
 cd /var/www/wp.perenimi.local
@@ -133,9 +133,9 @@ define( 'FS_METHOD', 'direct' );
 define( 'DISALLOW_FILE_EDIT', true );
 ```
 
-### 5.7 Failiõigused
+### 6.7 Failiõigused
 
-**Debian1:**
+**Debian:**
 
 ```bash
 sudo chown -R www-data:www-data /var/www/wp.perenimi.local
@@ -152,7 +152,7 @@ sudo chmod 640 /var/www/wp.perenimi.local/wp-config.php
 
 **Mitte kunagi `chmod 777`** – siis saab iga protsess serveris faile muuta.
 
-### 5.8 Paigaldus brauseris
+### 6.8 Paigaldus brauseris
 
 **Windowsi klient:** ava `http://wp.perenimi.local`.
 
@@ -162,9 +162,9 @@ sudo chmod 640 /var/www/wp.perenimi.local/wp-config.php
 4. *Seaded → Püsiviited* → vali **Postituse nimi** → *Salvesta*. WordPress kirjutab `.htaccess` faili.
 5. Tee postitus ja ava see – URL on kujul `http://wp.perenimi.local/minu-postitus/`.
 
-### 5.9 Kontroll
+### 6.9 Kontroll
 
-**Debian1:**
+**Debian:**
 
 ```bash
 sudo mariadb -e "SHOW TABLES FROM wp_db;"           # wp_posts, wp_users, wp_options …
@@ -175,4 +175,4 @@ sudo ss -tlnp | grep 3306                           # 127.0.0.1:3306 – ainult 
 
 MariaDB kuulab vaikimisi ainult `127.0.0.1` – väljastpoolt ei pääse andmebaasile keegi ligi. Järgmises peatükis muudame selle teadlikult teises masinas.
 
-> Levinumad vead ja lahendused: [Veebiserveri ja Wordpressi paigalduse peamised vead](../1a.%20Veebiserveri%20ja%20Wordpressi%20paigalduse%20peamised%20vead%20ja%20nende%20lahendus.md) ning peatükk 14.
+> Levinumad vead ja lahendused: [Veebiserveri ja Wordpressi paigalduse peamised vead](../1a.%20Veebiserveri%20ja%20Wordpressi%20paigalduse%20peamised%20vead%20ja%20nende%20lahendus.md) ning peatükk 15.

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DHCP simulaator – Kea ja Windows 11 klient</title>
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--ink:#1f1e1c;--quiet:#6b6862;--line:#dcd9d2;--acc:#2f6fd6;--acc-t:#e8f0fc;--ok:#2e7d4f;--ok-t:#e5f3ea;--bad:#b3261e;--bad-t:#fbeae8;--warn:#9a6700;--warn-t:#fbf2dc;--mono:ui-monospace,Consolas,"DejaVu Sans Mono",monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b1a;--card:#252524;--ink:#ecebe8;--quiet:#a3a09a;--line:#3a3936;--acc:#7aa7f0;--acc-t:#24324a;--ok:#6cc08b;--ok-t:#1f3326;--bad:#f08a80;--bad-t:#3a2220;--warn:#e0b250;--warn-t:#3a311c}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:20px 24px 8px;max-width:1240px;margin:auto}
+header a{color:var(--acc)}
+h1{font-size:22px;margin:6px 0 4px}
+header p{margin:0;color:var(--quiet);max-width:900px}
+main{max-width:1240px;margin:auto;padding:12px 24px 40px;display:grid;grid-template-columns:minmax(0,370px) minmax(0,1fr);gap:20px}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 10px}
+.opt label{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:6px 0;cursor:pointer}
+.opt input{margin-top:4px}
+.opt small{color:var(--quiet)}
+select{font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.clock{font:14px var(--mono);color:var(--quiet);margin-left:auto}
+.lane{position:relative;display:grid;grid-template-columns:150px 1fr 150px;gap:0;align-items:center}
+.ep{border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;text-align:center;background:var(--card)}
+.ep b{display:block;font-size:14px}
+.pk{list-style:none;padding:0;margin:8px 0 0}
+.pk li{display:grid;grid-template-columns:150px 1fr 150px;align-items:center;margin:4px 0;font-size:13px}
+.pk .msg{border-radius:7px;padding:5px 10px;border:1px solid var(--line);background:var(--bg)}
+.pk .msg b{font-family:var(--mono);font-size:13px}
+.pk .msg .a{font-family:var(--mono);font-size:12px;color:var(--quiet)}
+.pk .msg .o{font-size:12.5px;color:var(--quiet)}
+.pk li.c .msg{border-left:4px solid var(--ok)} .pk li.s .msg{border-right:4px solid var(--acc)} .pk li.x .msg{border-right:4px solid var(--warn);background:var(--warn-t)} .pk li.n .msg{background:var(--bad-t);border-color:var(--bad)}
+.pk li.i{display:block;color:var(--quiet);font-style:italic;font-size:13.5px;padding:2px 0 2px 150px}
+.arrowR::after{content:" ▶";color:var(--ok)} .arrowL::before{content:"◀ ";color:var(--acc)}
+.term{font:12.8px/1.45 var(--mono);white-space:pre;background:#0f1720;color:#d6e2ee;border-radius:8px;padding:10px 12px;overflow:auto}
+.term .h{color:#7fd1ff} .term .w{color:#ffcf6b} .term .e{color:#ff8f8f}
+table.lt{border-collapse:collapse;width:100%;font:12.5px var(--mono)}
+table.lt td,table.lt th{border:1px solid var(--line);padding:3px 6px;text-align:left}
+table.lt tr.me td{background:var(--ok-t)}
+.log{font:12.5px/1.45 var(--mono);white-space:pre-wrap;color:var(--quiet);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:190px;overflow:auto}
+.log .w{color:var(--warn)} .log .e{color:var(--bad)}
+.res{border-radius:8px;padding:10px 12px;font-size:14.5px;margin-top:10px}
+.res.ok{background:var(--ok-t);border:1px solid var(--ok)} .res.bad{background:var(--bad-t);border:1px solid var(--bad)} .res.warn{background:var(--warn-t);border:1px solid var(--warn)}
+.tasks li{margin:6px 0;font-size:14px}
+.tasks button{font-size:12.5px;padding:2px 8px;margin-left:4px}
+code{font-family:var(--mono);font-size:.92em}
+</style>
+</head>
+<body>
+<header>
+<a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
+<h1>DHCP simulaator</h1>
+<p>Windows 11 klient küsib Debiani Kea DHCP-serverilt aadressi. Vali seadistus ja rikked, vajuta <b>ipconfig /renew</b> ja vaata DORA pakette, Windowsi <code>ipconfig /all</code> väljundit, Kea rendifaili ja logi. Nupuga <b>⏩</b> liigub aeg edasi – nii näed rendi pikendamist (T1, T2) ja aegumist. Seadistus vastab peatükile 4.</p>
+</header>
+<main>
+<section>
+<div class="card opt">
+<h2>Kea seadistus (Debian)</h2>
+<label><input type="checkbox" id="o_run" checked> <span>kea-dhcp4-server töötab</span></label>
+<label><span><code>"interfaces"</code>: <select id="o_if"><option value="ens18">[ "ens18" ] ✓</option><option value="eth0">[ "eth0" ] (vale nimi)</option></select></span></label>
+<label><span><code>pools</code>: <select id="o_pool"><option value="big">.50 - .99</option><option value="tiny">.50 - .51 (ainult 2 aadressi)</option><option value="overlap">.10 - .99 (sisaldab serverite aadresse)</option></select></span></label>
+<label><input type="checkbox" id="o_dns" checked> <span><code>domain-name-servers</code> + <code>domain-name</code></span></label>
+<label><input type="checkbox" id="o_gw" checked> <span><code>routers</code> 192.168.XXX.1</span></label>
+<label><input type="checkbox" id="o_res"> <span>reserveering <code>bc:24:11:5e:7a:01 → .100</code></span></label>
+<label><span><code>valid-lifetime</code>: <select id="o_life"><option value="28800">28800 (8 h)</option><option value="3600">3600 (1 h)</option></select></span></label>
+<h2 style="margin-top:14px">Võrk</h2>
+<label><input type="checkbox" id="o_sdn"> <span>Proxmox SDN DHCP on sees <small>(subnetil DHCP Range)</small></span></label>
+<label><input type="checkbox" id="o_others" checked> <span>võrgus on veel 2 seadet, millel on rent <small>(.50 ja .51)</small></span></label>
+</div>
+<div class="card">
+<h2>Ülesanded</h2>
+<ol class="tasks" id="tasks"></ol>
+</div>
+</section>
+<section>
+<div class="card">
+<div class="row">
+<button class="btn primary" id="renew">ipconfig /renew</button>
+<button class="btn" id="release">ipconfig /release</button>
+<button class="btn" id="t4">⏩ +4 h</button>
+<button class="btn" id="t1">⏩ +1 h</button>
+<button class="btn" id="reset">Algusesse</button>
+<span class="clock" id="clock"></span>
+</div>
+<div id="res"></div>
+</div>
+<div class="card">
+<h2>Paketid (UDP 67 ↔ 68)</h2>
+<div class="lane"><div class="ep"><b>Windows 11</b>bc:24:11:5e:7a:01</div><div></div><div class="ep"><b>Debian · Kea</b>192.168.XXX.10</div></div>
+<ul class="pk" id="pk"></ul>
+</div>
+<div class="card">
+<h2>Windowsi klient: <code>ipconfig /all</code></h2>
+<div class="term" id="ipc"></div>
+</div>
+<div class="card">
+<h2>Debian: <code>/var/lib/kea/kea-leases4.csv</code> (kehtivad read)</h2>
+<div id="leases"></div>
+</div>
+<div class="card">
+<h2>Debian: <code>journalctl -u kea-dhcp4-server</code></h2>
+<div class="log" id="log"></div>
+</div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const MAC="bc:24:11:5e:7a:01",HOST="DESKTOP-AB12",SRV="192.168.XXX.10",SDN="192.168.XXX.1";
+let t,cl,kea,pk,logs,res,xid,declines=0;
+const o=k=>{const e=$("o_"+k);return e.type==="checkbox"?e.checked:e.value;};
+function reset(){t=0;cl={ip:null,apipa:null,server:null,start:0,life:0,dns:null,gw:null,suffix:null,t1done:false,t2done:false};
+ kea={};pk=[];logs=[];res=null;xid=0;seedOthers();render();}
+function seedOthers(){if(o("others")){kea["bc:24:11:00:00:aa"]={ip:"192.168.XXX.50",exp:t+20000,host:"printer"};kea["bc:24:11:00:00:bb"]={ip:"192.168.XXX.51",exp:t+20000,host:"laptop"};}}
+function hhmm(s){const d=new Date(Date.UTC(2026,10,12,8,0,0)+s*1000);return d.toISOString().slice(11,16);}
+function L(m,c){logs.push(`<div class="${c||""}">${hhmm(t)} kea-dhcp4: ${m}</div>`);}
+function P(dir,type,src,dst,opts,cls){pk.push({dir,type,src,dst,opts,cls});}
+function I(m){pk.push({info:m});}
+function keaUp(){return o("run")&&o("if")==="ens18";}
+function poolList(){if(o("pool")==="tiny")return["192.168.XXX.50","192.168.XXX.51"];
+ const a=[],s=o("pool")==="overlap"?10:50;for(let i=s;i<=99;i++)a.push("192.168.XXX."+i);return a;}
+function used(){const u={};for(const m in kea)if(kea[m].exp>t&&m!==MAC)u[kea[m].ip]=1;return u;}
+function keaOffer(){
+ if(o("res"))return{ip:"192.168.XXX.100",host:"win11"};
+ if(kea[MAC]&&kea[MAC].exp>t)return{ip:kea[MAC].ip};
+ const u=used();for(const ip of poolList())if(!u[ip])return{ip};
+ return null;}
+function optsText(sdn){if(sdn)return "rent 1 h · lüüs 192.168.XXX.1 · DNS 192.168.XXX.1 · domeen puudub";
+ const p=[`rent ${o("life")/3600} h`];if(o("gw"))p.push("lüüs 192.168.XXX.1");if(o("dns"))p.push("DNS 192.168.XXX.10 · perenimi.local");return p.join(" · ");}
+function apply(ip,server,sdn){cl.ip=ip;cl.apipa=null;cl.server=server;cl.start=t;cl.life=sdn?3600:+o("life");cl.t1done=cl.t2done=false;
+ cl.gw=sdn?SDN:(o("gw")?"192.168.XXX.1":null);cl.dns=sdn?SDN:(o("dns")?SRV:null);cl.suffix=sdn?null:(o("dns")?"perenimi.local":null);}
+function discover(){
+ xid++;const x="0x"+(0x68b27c70+xid*7919).toString(16);
+ if(o("run")&&o("if")!=="ens18"&&!logs.some(l=>l.includes("doesn't exist"))){L(`ERROR DHCP4_PARSER_FAIL … interface 'eth0' doesn't exist in the system`,"e");L("ERROR DHCP4_INIT_FAIL failed to initialize Kea server","e");}
+ P("c","DHCPDISCOVER","0.0.0.0:68 "+MAC,"255.255.255.255:67 ff:ff:ff:ff:ff:ff",`xid ${x} · hostname ${HOST} · küsib valikuid 1,3,6,15,51,119`,"c");
+ const offers=[];
+ if(keaUp()){L(`INFO  DHCP4_PACKET_RECEIVED [hwtype=1 ${MAC}], tid=${x}: DHCPDISCOVER (type 1) received from 0.0.0.0 to 255.255.255.255 on interface ens18`);
+  const of=keaOffer();
+  if(of){offers.push({srv:SRV,ip:of.ip,sdn:false,host:of.host});L(`INFO  DHCP4_LEASE_OFFER [hwtype=1 ${MAC}], tid=${x}: lease ${of.ip} will be offered`);}
+  else L(`WARN  DHCP4_ALLOC_ENGINE_V4_ALLOC_FAIL [hwtype=1 ${MAC}], tid=${x}: failed to allocate an IPv4 address after 2 attempt(s)`,"w");}
+ if(o("sdn"))offers.unshift({srv:SDN,ip:"192.168.XXX.1"+(40+xid%30),sdn:true});
+ if(!offers.length){
+  for(let i=0;i<3;i++)P("c","DHCPDISCOVER","0.0.0.0:68","255.255.255.255:67","kordus "+(i+2)+" – vastust pole","c");
+  const a="169.254."+(17+xid)+"."+(3+xid*5%200);cl={...cl,ip:null,apipa:a,server:null,dns:null,gw:null,suffix:null};
+  I("Ükski DHCP-server ei vastanud → Windows paneb endale APIPA aadressi "+a+".");
+  const why=!o("run")?"Kea teenus ei tööta (<code>systemctl status kea-dhcp4-server</code>).":o("if")!=="ens18"?"<code>interfaces</code> on vale nimega – Kea ei käivitunud üldse (logis <code>doesn't exist in the system</code>). Kontrolli <code>ip -br link</code> ja <code>kea-dhcp4 -t</code>.":"Vahemikus pole vaba aadressi: kõik on teiste seadmete käes (logis <code>ALLOC_FAIL</code>). Suurenda vahemikku või lühenda renti.";
+  res=["bad",`<b>APIPA ${a}</b> – võrk ei tööta. ${why}`];return;}
+ offers.forEach(of=>P("s","DHCPOFFER",(of.sdn?SDN:SRV)+":67",of.ip+":68",(of.sdn?"<b>Proxmox SDN dnsmasq</b> · ":"")+`pakub ${of.ip}${of.host?" (reserveering, hostname "+of.host+")":""} · `+optsText(of.sdn),of.sdn?"x":"s"));
+ const pick=offers[0];
+ if(offers.length>1)I(`Saabus ${offers.length} pakkumist. Klient võtab esimese – Proxmoxi oma jõudis enne.`);
+ P("c","DHCPREQUEST","0.0.0.0:68","255.255.255.255:67",`requested ${pick.ip} · server-id ${pick.srv}`,"c");
+ if(keaUp()&&pick.sdn){L(`INFO  DHCP4_PACKET_RECEIVED … DHCPREQUEST … server-id ${SDN} – not for us, dropping`);}
+ P("s","DHCPACK",pick.srv+":67",pick.ip+":68",`rent kinnitatud (${pick.sdn?3600:o("life")} s)`,pick.sdn?"x":"s");
+ if(!pick.sdn){kea[MAC]={ip:pick.ip,exp:t+ +o("life"),host:pick.host||HOST};L(`INFO  DHCP4_LEASE_ALLOC [hwtype=1 ${MAC}], tid=${x}: lease ${pick.ip} has been allocated for ${o("life")} seconds`);}
+ if(!pick.sdn&&(pick.ip==="192.168.XXX.10"||pick.ip==="192.168.XXX.20")){
+  I(`Windows kontrollib enne kasutamist ARP-iga, kas ${pick.ip} on vaba – vastab ${pick.ip==="192.168.XXX.10"?"Debian":"Ubuntu"}! Aadress on juba kasutusel.`);
+  P("c","DHCPDECLINE","0.0.0.0:68",SRV+":67",`aadress ${pick.ip} on võrgus juba kasutusel`,"c");
+  L(`INFO  DHCP4_DECLINE_LEASE [hwtype=1 ${MAC}]: client reports that the address ${pick.ip} is already used by another device and will be unavailable for 86400 seconds`,"w");
+  delete kea[MAC];kea["declined-"+pick.ip]={ip:pick.ip,exp:t+86400,host:"(declined)"};
+  declines=(typeof declines==="number"?declines:0)+1;if(declines<4)return discover();}
+ apply(pick.ip,pick.srv,pick.sdn);
+ if(pick.sdn){res=["bad",`Aadress ${pick.ip} tuli <b>Proxmoxi SDN-i DHCP-lt</b> (192.168.XXX.1), mitte Keast! DNS on vale ja domeen puudub – <code>*.perenimi.local</code> nimed ei lahendu. Lülita SDN-i alamvõrgus DHCP Range välja (4.4).`];return;}
+ const warn=[];if(!o("dns"))warn.push("DNS-serverit ei antud – <code>nslookup mail.perenimi.local</code> ebaõnnestub, brauser ei leia saite");
+ if(!o("gw"))warn.push("lüüsi ei antud – internet ei tööta (kohalik võrk töötab)");
+ if(o("pool")==="overlap")warn.push("Kea pakkus esmalt serveri aadressi – kuna Kea ei tea, et Debianil ja Ubuntul on käsitsi pandud aadressid. Seekord päästis Windowsi ARP-kontroll (DHCPDECLINE), kuid seade, mis seda kontrolli ei tee (või kui server on parajasti väljas), tekitab IP-konflikti ja server kaob võrgust. Vahemik peab olema .50 – .99");
+ res=warn.length?["warn","Aadress saadud, aga: "+warn.join("; ")+"."]:["ok",`Klient sai aadressi <b>${pick.ip}</b>${pick.host?" (reserveeringu järgi)":""}, lüüsi, DNS-i ja domeeni. Kõik töötab.`];
+}
+function release(){
+ if(!cl.ip){I("Kliendil pole aadressi, mida vabastada.");res=["warn","Pole midagi vabastada."];return;}
+ P("c","DHCPRELEASE",cl.ip+":68",cl.server+":67","loobun aadressist "+cl.ip,"c");
+ if(cl.server===SRV&&keaUp()){if(kea[MAC])kea[MAC].exp=t;L(`INFO  DHCP4_RELEASE [hwtype=1 ${MAC}]: address ${cl.ip} was released properly.`);}
+ cl={...cl,ip:null,apipa:null,server:null,dns:null,gw:null,suffix:null};res=["warn","Aadress vabastatud – Windowsil pole praegu IPv4 aadressi. Vajuta <b>ipconfig /renew</b>."];
+}
+function advance(sec){
+ const end=t+sec;
+ while(true){
+  if(!cl.ip){t=end;break;}
+  const T1=cl.start+cl.life*0.5,T2=cl.start+cl.life*0.875,EX=cl.start+cl.life;
+  let next=null,kind=null;
+  if(!cl.t1done&&T1<=end){next=T1;kind="t1";}else if(!cl.t2done&&T2<=end){next=T2;kind="t2";}else if(EX<=end){next=EX;kind="ex";}
+  if(next===null){t=end;break;}
+  t=next;
+  if(kind==="t1"){cl.t1done=true;I(`${hhmm(t)} – T1 (50%): klient pikendab rendi otse oma serverilt.`);
+   P("c","DHCPREQUEST",cl.ip+":68",cl.server+":67","RENEW (unicast) "+cl.ip,"c");
+   if(cl.server===SRV&&keaUp()){kea[MAC].exp=t+ +o("life");L(`INFO  DHCP4_LEASE_ALLOC [hwtype=1 ${MAC}]: lease ${cl.ip} has been allocated for ${o("life")} seconds (renew)`);
+    P("s","DHCPACK",SRV+":67",cl.ip+":68","rent pikendatud","s");cl.start=t;cl.life=+o("life");cl.t1done=cl.t2done=false;res=["ok","T1 ajal pikendati renti – kasutaja ei märganud midagi."];}
+   else if(cl.server===SDN&&o("sdn")){P("s","DHCPACK",SDN+":67",cl.ip+":68","rent pikendatud","x");cl.start=t;cl.t1done=cl.t2done=false;}
+   else{I("Server ei vasta. Klient jätkab vana rendiga ja proovib uuesti.");res=["warn","Server ei vastanud T1 ajal – aadress kehtib veel, aga ootab T2-te."];}
+  }else if(kind==="t2"){cl.t2done=true;I(`${hhmm(t)} – T2 (87,5%): oma server pole vastanud → klient küsib kõigilt.`);
+   P("c","DHCPREQUEST","0.0.0.0:68","255.255.255.255:67","REBIND (broadcast) "+cl.ip,"c");
+   if(keaUp()&&kea[MAC]){kea[MAC].exp=t+ +o("life");P("s","DHCPACK",SRV+":67",cl.ip+":68","rent pikendatud (rebind)","s");cl.start=t;cl.server=SRV;cl.life=+o("life");cl.t1done=cl.t2done=false;res=["ok","T2 ajal vastas server ja pikendas renti."];}
+   else{I("Keegi ei vasta.");res=["warn","Ka T2 ajal ei vastanud keegi – rent aegub peagi."];}
+  }else{I(`${hhmm(t)} – rent aegus! Windows kaotab aadressi ja alustab otsast.`);if(kea[MAC])kea[MAC].exp=t;
+   cl={...cl,ip:null};discover();}
+ }
+}
+function ipconfig(){
+ const h=s=>`<span class="h">${s}</span>`;
+ let ip=cl.ip,auto=false;if(!ip&&cl.apipa){ip=cl.apipa;auto=true;}
+ const lines=[h("Ethernet adapter Ethernet:"),"",
+  `   Connection-specific DNS Suffix  . : ${cl.suffix||""}`,
+  `   Description . . . . . . . . . . . : Red Hat VirtIO Ethernet Adapter`,
+  `   Physical Address. . . . . . . . . : BC-24-11-5E-7A-01`,
+  `   DHCP Enabled. . . . . . . . . . . : Yes`,
+  `   Autoconfiguration Enabled . . . . : Yes`];
+ if(ip){lines.push(auto?`<span class="e">   Autoconfiguration IPv4 Address. . : ${ip}(Preferred)</span>`:`   IPv4 Address. . . . . . . . . . . : ${ip}(Preferred)`);
+  lines.push(`   Subnet Mask . . . . . . . . . . . : 255.255.${auto?"0.0":"255.0"}`);
+  if(!auto){lines.push(`   Lease Obtained. . . . . . . . . . : 12. november 2026 ${hhmm(cl.start)}`);lines.push(`   Lease Expires . . . . . . . . . . : 12. november 2026 ${hhmm(cl.start+cl.life)}${cl.start+cl.life>=57600?" (+1 päev)":""}`);}
+  lines.push(`   Default Gateway . . . . . . . . . : ${cl.gw||""}`);
+  if(!auto)lines.push(`   DHCP Server . . . . . . . . . . . : ${cl.server===SDN?`<span class="w">${cl.server}</span>`:cl.server}`);
+  lines.push(`   DNS Servers . . . . . . . . . . . : ${cl.dns?(cl.dns===SDN?`<span class="w">${cl.dns}</span>`:cl.dns):""}`);}
+ else lines.push(`   (IPv4 aadress puudub)`);
+ $("ipc").innerHTML=lines.join("\n");
+}
+function render(){
+ $("clock").textContent="kell "+hhmm(t);
+ $("pk").innerHTML=pk.slice(-14).map(p=>p.info?`<li class="i">${p.info}</li>`:
+  `<li class="${p.cls}${p.type==="DHCPNAK"?" n":""}"><span></span><div class="msg ${p.dir==="c"?"arrowR":"arrowL"}"><b>${p.type}</b> <span class="a">${p.src} → ${p.dst}</span><div class="o">${p.opts}</div></div><span></span></li>`).join("")||'<li class="i">Vajuta „ipconfig /renew“.</li>';
+ ipconfig();
+ const rows=Object.entries(kea).filter(([m,l])=>l.exp>t);
+ $("leases").innerHTML=rows.length?'<table class="lt"><tr><th>address</th><th>hwaddr</th><th>expire (kell)</th><th>hostname</th></tr>'+rows.map(([m,l])=>`<tr class="${m===MAC?"me":""}"><td>${l.ip}</td><td>${m}</td><td>${hhmm(l.exp)}</td><td>${l.host}</td></tr>`).join("")+"</table>":"<p style='color:var(--quiet);margin:0'>(kehtivaid rente pole)</p>";
+ $("log").innerHTML=logs.slice(-30).join("")||(keaUp()?`<div>${hhmm(t)} kea-dhcp4: INFO  DHCPSRV_CFGMGR_ADD_IFACE listening on interface ens18</div>`:"(teenus ei tööta)");
+ $("log").scrollTop=1e6;
+ $("res").innerHTML=res?`<div class="res ${res[0]}">${res[1]}</div>`:"";
+}
+$("renew").onclick=()=>{res=null;declines=0;
+ if(cl.ip&&cl.server){I("Kliendil on kehtiv rent – /renew küsib pikendust otse oma serverilt.");
+  P("c","DHCPREQUEST",cl.ip+":68",cl.server+":67","RENEW (unicast) "+cl.ip,"c");
+  const ok=(cl.server===SRV&&keaUp())||(cl.server===SDN&&o("sdn"));
+  if(ok){P("s","DHCPACK",cl.server+":67",cl.ip+":68","rent pikendatud",cl.server===SDN?"x":"s");
+   if(cl.server===SRV){kea[MAC].exp=t+ +o("life");L(`INFO  DHCP4_LEASE_ALLOC [hwtype=1 ${MAC}]: lease ${cl.ip} has been allocated for ${o("life")} seconds (renew)`);}
+   apply(cl.ip,cl.server,cl.server===SDN);res=["ok","Rent pikendati – aeg algab otsast ja ACK-iga tulnud valikud (lüüs, DNS) rakendatakse uuesti."];}
+  else{res=["warn","Windows: <i>An error occurred while renewing interface Ethernet : unable to contact your DHCP server. Request has timed out.</i> Vana aadress kehtib edasi kuni rendi lõpuni."];}}
+ else discover();render();};
+$("release").onclick=()=>{release();render();};
+$("t4").onclick=()=>{advance(4*3600);render();};
+$("t1").onclick=()=>{advance(3600);render();};
+$("reset").onclick=reset;
+document.querySelectorAll(".opt input,.opt select").forEach(e=>e.addEventListener("change",()=>{
+ if(e.id==="o_others"){for(const m of ["bc:24:11:00:00:aa","bc:24:11:00:00:bb"])delete kea[m];seedOthers();}
+ if(!keaUp()&&!logs.some(l=>l.includes("stopped"))&&e.id==="o_run")L("INFO  DHCP4_SHUTDOWN server shutdown (systemctl stop)","w");
+ render();}));
+const TASKS=[
+ ["Tavaline juhtum: tee /renew. Leia neli DORA paketti. Miks on DISCOVER ja REQUEST saaja 255.255.255.255?",{},[]],
+ ["Liiguta aega +4 h. Mis juhtub T1 ajal? Kas kasutaja märkab midagi?",{},[]],
+ ["Peata Kea, liiguta aega +4 h, +4 h ja veel. Mis juhtub T1, T2 ja rendi lõpus?",{},[]],
+ ["Kea liides on vale nimega. Tee /release ja /renew. Mida näed Windowsis ja logis?",{if:"eth0"},[]],
+ ["Proxmoxi SDN DHCP on sees. Tee /release ja /renew. Kes andis aadressi? Mis valesti?",{sdn:true},[]],
+ ["Vahemik on ainult 2 aadressi ja need on teiste käes. Tee /release ja /renew.",{pool:"tiny"},[]],
+ ["DNS-valik puudub. Mida näitab ipconfig? Mis kasutajal katki on?",{dns:false},[]],
+ ["Lülita sisse reserveering ja tee /release + /renew. Mis aadress ja hostinimi?",{res:true},[]],
+ ["Vahemik .10 - .99: mis oht siin on, kuigi kõik justkui töötab?",{pool:"overlap"},[]]];
+$("tasks").innerHTML=TASKS.map((x,i)=>`<li>${x[0]} <button class="btn" data-t="${i}">Lae</button></li>`).join("");
+document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{const v=TASKS[b.dataset.t][1];
+ $("o_run").checked=true;$("o_if").value="ens18";$("o_pool").value="big";$("o_dns").checked=true;$("o_gw").checked=true;$("o_res").checked=false;$("o_sdn").checked=false;$("o_others").checked=true;$("o_life").value="28800";
+ for(const k in v){const e=$("o_"+k);if(e.type==="checkbox")e.checked=v[k];else e.value=v[k];}
+ reset();window.scrollTo({top:0,behavior:"smooth"});});
+reset();
+</script>
+</body>
+</html>

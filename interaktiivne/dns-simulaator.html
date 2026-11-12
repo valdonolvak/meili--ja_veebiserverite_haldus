@@ -39,12 +39,12 @@ small{color:var(--quiet)}
 <header>
 <a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
 <h1>DNS-i simulaator</h1>
-<p>Vasakul on Debian2 tsoonifail <code>/etc/bind/zones/db.perenimi.local</code>. Muuda seda, vajuta <b>rndc reload</b> ja küsi nimesid erinevatest masinatest. Simulaator näitab, kes vastas (tsoon, BIND-i vahemälu, edastaja või Windowsi enda vahemälu) ja mida näitaks <code>dig</code>.</p>
+<p>Vasakul on Debiani tsoonifail <code>/etc/bind/zones/db.perenimi.local</code>. Muuda seda, vajuta <b>rndc reload</b> ja küsi nimesid erinevatest masinatest. Simulaator näitab, kes vastas (tsoon, BIND-i vahemälu, edastaja või Windowsi enda vahemälu) ja mida näitaks <code>dig</code>.</p>
 </header>
 <main>
 <section>
 <div class="card">
-<h2>Tsoonifail (Debian2)</h2>
+<h2>Tsoonifail (Debian)</h2>
 <textarea id="zone" spellcheck="false"></textarea>
 <div class="row">
 <button class="btn primary" id="reload">sudo rndc reload perenimi.local</button>
@@ -61,8 +61,8 @@ small{color:var(--quiet)}
 <h2>Päring</h2>
 <div class="row" style="margin-top:0">
 <select id="client">
-<option value="win">Windows klient 10.0.XXX.100</option>
-<option value="deb1">Debian1 10.0.XXX.10</option>
+<option value="win">Windows klient 192.168.XXX.50</option>
+<option value="deb1">Ubuntu 192.168.XXX.20</option>
 <option value="out">Väline arvuti 192.0.2.50</option>
 </select>
 <input id="qname" value="mail.perenimi.local" size="26">
@@ -93,11 +93,11 @@ small{color:var(--quiet)}
 <li>Küsi Windowsist <code>wp.perenimi.local</code> tüübiga A. Miks vastuses on kaks rida?</li>
 <li>Küsi <code>debian.org</code> kaks korda järjest. Mis erineb teisel korral? Lülita sisse „edastajad ei vasta“ ja küsi uuesti – miks vastus ikka tuleb? Mis juhtub <code>wordpress.org</code>-iga?</li>
 <li>Küsi väliselt arvutilt <code>mail.perenimi.local</code>. Miks REFUSED? Milline <code>named.conf.options</code> rida seda teeb?</li>
-<li>Küsi Windowsist <code>www.perenimi.local</code>. Muuda tsoonis <code>www</code> IP-ks <code>10.0.XXX.99</code>, <b>ära muuda seerianumbrit</b>, tee reload. Mida näitab named-i logi? Mida vastab Debian1 ja mida Windows? Miks? Mis aitab?</li>
+<li>Küsi Windowsist <code>www.perenimi.local</code>. Muuda tsoonis <code>www</code> IP-ks <code>192.168.XXX.99</code>, <b>ära muuda seerianumbrit</b>, tee reload. Mida näitab named-i logi? Mida vastab Ubuntu ja mida Windows? Miks? Mis aitab?</li>
 <li>Kustuta MX-kirjes <code>mail.perenimi.local.</code> lõpust punkt ja tee reload. Küsi <code>perenimi.local MX</code>. Mis nimi tuli? Kuhu läheks e-post?</li>
-<li>Lisa rida <code>www IN CNAME debian1</code> (www A-kirje jääb alles) ja tee reload. Mis juhtub kogu tsooniga?</li>
-<li>Kirjuta mõnes A-kirjes IP valesti (nt <code>10.0.XXX.300</code>) ja tee reload. Mida küsib nüüd Windows <code>mail.perenimi.local</code> kohta?</li>
-<li>Küsi <code>s1._domainkey.perenimi.local</code> TXT ja <code>_dmarc.perenimi.local</code> TXT. Milleks neid vaja on (peatükk 10)?</li>
+<li>Lisa rida <code>www IN CNAME debian</code> (www A-kirje jääb alles) ja tee reload. Mis juhtub kogu tsooniga?</li>
+<li>Kirjuta mõnes A-kirjes IP valesti (nt <code>192.168.XXX.300</code>) ja tee reload. Mida küsib nüüd Windows <code>mail.perenimi.local</code> kohta?</li>
+<li>Küsi <code>s1._domainkey.perenimi.local</code> TXT ja <code>_dmarc.perenimi.local</code> TXT. Milleks neid vaja on (peatükk 11)?</li>
 </ol>
 </div>
 </section>
@@ -117,22 +117,21 @@ $ORIGIN perenimi.local.
 @       IN  NS      ns1.perenimi.local.
 
 ; --- Masinad ---
-ns1     IN  A       10.0.XXX.20
-debian1 IN  A       10.0.XXX.10
-debian2 IN  A       10.0.XXX.20
-ubuntu  IN  A       10.0.XXX.30
+ns1     IN  A       192.168.XXX.10
+debian  IN  A       192.168.XXX.10
+ubuntu  IN  A       192.168.XXX.20
 
-; --- Veebisaidid (Debian1) ---
-@       IN  A       10.0.XXX.10
-www     IN  A       10.0.XXX.10
-wp      IN  CNAME   debian1
-blogi   IN  CNAME   debian1
+; --- Veebisaidid (Debian) ---
+@       IN  A       192.168.XXX.10
+www     IN  A       192.168.XXX.10
+wp      IN  CNAME   debian
+blogi   IN  CNAME   debian
 
-; --- Andmebaas (Debian2) ---
-db      IN  CNAME   debian2
+; --- blogi kaugandmebaas (Ubuntu) ---
+db      IN  CNAME   ubuntu
 
 ; --- E-post (Ubuntu) ---
-mail    IN  A       10.0.XXX.30
+mail    IN  A       192.168.XXX.20
 @       IN  MX  10  mail.perenimi.local.
 
 ; --- E-posti autentimine ---
@@ -143,7 +142,7 @@ s1._domainkey IN TXT ( "v=DKIM1; h=sha256; k=rsa; "
 `;
 const EXT={"debian.org.":{A:["151.101.2.132","151.101.66.132"],ttl:300},"gmail.com.":{MX:["5 gmail-smtp-in.l.google.com."],A:["142.250.74.37"],ttl:300},
  "smtp.gmail.com.":{A:["142.250.74.108"],ttl:300},"google.com.":{A:["142.250.74.46"],ttl:300}};
-const PTR={"10":"debian1.perenimi.local.","20":"debian2.perenimi.local.","30":"mail.perenimi.local."};
+const PTR={"10":"debian.perenimi.local.","20":"mail.perenimi.local."};
 let loaded=null,loadedText=null,loadedSerial=null,now=0,bindCache={},winCache={};
 const logs=[];
 function nlog(t,c){const d=new Date(Date.UTC(2026,10,12,9,0,0)+now*1000);logs.push(`<div class="${c||''}">${d.toISOString().slice(11,19)} named[611]: ${esc(t)}</div>`);$("nlog").innerHTML=logs.join("");$("nlog").scrollTop=1e6;}
@@ -222,24 +221,24 @@ function ask(){
  let qn=$("qname").value.trim().toLowerCase();const qt=$("qtype").value;const cl=$("client").value;
  const S=[],add=(c,t)=>S.push(`<li class="${c}">${t}</li>`);
  let qname=qn;
- if(qt==="PTR"&&/^10\.0\.(xxx|\d+)\.\d+$/.test(qn)){const o=qn.split(".");qname=`${o[3]}.${o[2]}.0.10.in-addr.arpa`;add("act",`Pöördpäring: ${qn} → <code>${qname}</code>`);}
+ if(qt==="PTR"&&/^192\.168\.(xxx|\d+)\.\d+$/.test(qn)){const o=qn.split(".");qname=`${o[3]}.${o[2]}.168.192.in-addr.arpa`;add("act",`Pöördpäring: ${qn} → <code>${qname}</code>`);}
  if(!qname.endsWith("."))qname+=".";
  const key=qname+"|"+qt;
- const server="10.0.XXX.20";
+ const server="192.168.XXX.10";
  let out=`; <<>> DiG 9.20 <<>> @${server} ${qname.slice(0,-1)} ${qt}\n`;
  // Windowsi vahemälu
  if(cl==="win"&&winCache[key]&&winCache[key].exp>now){const e=winCache[key];
   add("warn",`<b>Windowsi DNS Client vahemälu</b> – vastus on meeles veel ${e.exp-now} s. Serverilt ei küsitudki! <span class="badge b-warn">vahemälu</span>`);
   $("steps").innerHTML=S.join("");$("out").textContent="(Windows vastas oma vahemälust – vaata ipconfig /displaydns)\n\n"+e.lines.join("\n");return;}
- if(cl==="win")add("ok","Windowsi vahemälus seda pole → küsitakse DNS-serverilt 10.0.XXX.20.");
- if($("down").checked){add("bad","UDP 53 → 10.0.XXX.20: vastust ei tule (named ei tööta). <span class='badge b-bad'>timeout</span>");
-  $("steps").innerHTML=S.join("");$("out").textContent=out+";; communications error to 10.0.XXX.20#53: timed out\n;; no servers could be reached";return;}
+ if(cl==="win")add("ok","Windowsi vahemälus seda pole → küsitakse DNS-serverilt 192.168.XXX.10.");
+ if($("down").checked){add("bad","UDP 53 → 192.168.XXX.10: vastust ei tule (named ei tööta). <span class='badge b-bad'>timeout</span>");
+  $("steps").innerHTML=S.join("");$("out").textContent=out+";; communications error to 192.168.XXX.10#53: timed out\n;; no servers could be reached";return;}
  if(cl==="out"){add("bad","Päringu allikas 192.0.2.50 ei kuulu ACL-i <code>labor</code> → allow-query keelab. <span class='badge b-bad'>REFUSED</span>");
   nlog(`client @0x7f 192.0.2.50#53211 (${qname.slice(0,-1)}): query (cache) '${qname.slice(0,-1)}/${qt}/IN' denied (allow-query-cache did not match)`,"w");
   $("steps").innerHTML=S.join("");$("out").textContent=out+";; ->>HEADER<<- opcode: QUERY, status: REFUSED\n;; flags: qr rd; QUERY: 1, ANSWER: 0\n;; WARNING: recursion requested but not available";return;}
  add("ok","Päring tuleb labori võrgust → ACL <code>labor</code> lubab.");
  let status,ans=[],aa=false,ra=true,cacheNote="";
- if(qname.endsWith(".in-addr.arpa.")){aa=true;add("act","BIND on autoriteetne pöördtsoonile <code>XXX.0.10.in-addr.arpa</code>.");
+ if(qname.endsWith(".in-addr.arpa.")){aa=true;add("act","BIND on autoriteetne pöördtsoonile <code>XXX.168.192.in-addr.arpa</code>.");
   const last=qname.split(".")[0];if(qt==="PTR"&&PTR[last]){ans=[{name:qname,ttl:3600,type:"PTR",data:PTR[last]}];status="NOERROR";}else status=PTR[last]?"NOERROR":"NXDOMAIN";}
  else if(inZone(qname)){aa=true;
   if(!loaded){add("bad","Tsoon <code>perenimi.local</code> pole laetud (vigane tsoonifail) → BIND ei saa vastata. <span class='badge b-bad'>SERVFAIL</span>");
@@ -267,7 +266,7 @@ function ask(){
  const lines=ans.map(fmt);
  out+=`;; ->>HEADER<<- opcode: QUERY, status: ${status}\n;; flags: qr${aa?" aa":""} rd${ra?" ra":""}; QUERY: 1, ANSWER: ${ans.length}\n\n;; QUESTION SECTION:\n;${qname}\t\tIN\t${qt}\n`;
  if(lines.length)out+="\n;; ANSWER SECTION:\n"+lines.join("\n")+"\n";
- out+="\n"+(cacheNote||";; Query time: 1 msec")+"\n;; SERVER: 10.0.XXX.20#53(10.0.XXX.20) (UDP)";
+ out+="\n"+(cacheNote||";; Query time: 1 msec")+"\n;; SERVER: 192.168.XXX.10#53(192.168.XXX.10) (UDP)";
  if(cl==="win"&&status==="NOERROR"&&ans.length){const ttl=Math.min(...ans.map(r=>r.ttl));winCache[key]={exp:now+ttl,lines};add("act",`Windows salvestab vastuse oma vahemällu ${ttl} sekundiks.`);}
  $("steps").innerHTML=S.join("");$("out").textContent=out;
 }

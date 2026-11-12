@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Apache virtuaalhosti simulaator – Debian1</title>
+<title>Apache virtuaalhosti simulaator – Debian</title>
 <style>
 :root{--bg:#f7f6f3;--card:#fff;--ink:#1f1e1c;--quiet:#6b6862;--line:#dcd9d2;--acc:#2f6fd6;--acc-t:#e8f0fc;--ok:#2e7d4f;--ok-t:#e5f3ea;--bad:#b3261e;--bad-t:#fbeae8;--warn:#9a6700;--warn-t:#fbf2dc;--mono:ui-monospace,Consolas,"DejaVu Sans Mono",monospace}
 @media (prefers-color-scheme:dark){:root{--bg:#1b1b1a;--card:#252524;--ink:#ecebe8;--quiet:#a3a09a;--line:#3a3936;--acc:#7aa7f0;--acc-t:#24324a;--ok:#6cc08b;--ok-t:#1f3326;--bad:#f08a80;--bad-t:#3a2220;--warn:#e0b250;--warn-t:#3a311c}}
@@ -47,7 +47,7 @@ code{font-family:var(--mono);font-size:.92em}
 <header>
 <a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
 <h1>Apache virtuaalhosti simulaator</h1>
-<p>Windowsi kliendi brauser avab aadressi. Simulaator näitab DNS-päringut, TLS-i ja serdi kontrolli, <code>Host:</code> päise järgi valitud virtuaalhosti Debian1-s ning lõpptulemust. Muuda seadistust vasakul ja vaata, mis muutub.</p>
+<p>Windowsi kliendi brauser avab aadressi. Simulaator näitab DNS-päringut, TLS-i ja serdi kontrolli, <code>Host:</code> päise järgi valitud virtuaalhosti Debian-s ning lõpptulemust. Muuda seadistust vasakul ja vaata, mis muutub.</p>
 </header>
 <main>
 <section>
@@ -58,28 +58,28 @@ code{font-family:var(--mono);font-size:.92em}
 <div style="margin-top:10px"><button class="btn primary" id="go">Ava</button></div>
 </div>
 <div class="card opt">
-<h2>Debian1 seadistus</h2>
+<h2>Debiani seadistus</h2>
 <label><input type="checkbox" id="o_vaike" checked> <span><code>000-vaike.conf</code> lubatud</span></label>
 <label><input type="checkbox" id="o_default"> <span><code>000-default.conf</code> lubatud (Debiani vaikesait)</span></label>
 <label><input type="checkbox" id="o_php" checked> <span><code>libapache2-mod-php</code> paigaldatud</span></label>
 <label><input type="checkbox" id="o_rewrite" checked> <span><code>a2enmod rewrite</code></span></label>
 <label><input type="checkbox" id="o_override" checked> <span>wp ja blogi vhostis <code>AllowOverride All</code></span></label>
-<label><input type="checkbox" id="o_https"> <span>HTTPS vhostid ja suunamine tehtud (peatükk 7.5)</span></label>
-<label><input type="checkbox" id="o_siteurl"> <span>WordPressi aadress muudetud <code>https://</code>-ks (7.6)</span></label>
-<label><input type="checkbox" id="o_ca" checked> <span>Windows usaldab labori CA-d (7.7)</span></label>
-<label><input type="checkbox" id="o_db"> <span>Debian2 tulemüüris port 3306 suletud</span></label>
+<label><input type="checkbox" id="o_https"> <span>HTTPS vhostid ja suunamine tehtud (peatükk 8.5)</span></label>
+<label><input type="checkbox" id="o_siteurl"> <span>WordPressi aadress muudetud <code>https://</code>-ks (8.6)</span></label>
+<label><input type="checkbox" id="o_ca" checked> <span>Windows usaldab labori CA-d (8.7)</span></label>
+<label><input type="checkbox" id="o_db"> <span>Ubuntu tulemüüris port 3306 suletud</span></label>
 </div>
 <div class="card">
 <h2>Ülesanded</h2>
 <ol class="tasks">
-<li>Ava <code>http://wp.perenimi.local/</code> ja <code>http://10.0.XXX.10/</code>. Milline vhost vastas kummalgi ja miks?</li>
+<li>Ava <code>http://wp.perenimi.local/</code> ja <code>http://192.168.XXX.10/</code>. Milline vhost vastas kummalgi ja miks?</li>
 <li>Keela <code>000-vaike</code> ja ava IP-ga uuesti. Kes on nüüd vaikehost? Luba <code>000-default</code> – mis muutub?</li>
 <li>Ava postitus <code>/2026/11/tere/</code>. Võta ära <code>AllowOverride All</code>. Miks avaleht töötab, aga postitus mitte?</li>
 <li>Võta ära PHP moodul ja ava <code>/wp-config.php</code>. Miks on see turvarisk? Mis näidatakse PHP mooduliga?</li>
 <li>Lülita sisse HTTPS ja ava <code>http://wp.perenimi.local/</code>. Mitu päringut brauser tegi? Miks tekib viga, kui WordPressi aadress on <code>http://</code>?</li>
-<li>HTTPS-iga: ava <code>https://10.0.XXX.10/</code>. Miks serdiviga, kuigi CA on usaldatud?</li>
+<li>HTTPS-iga: ava <code>https://192.168.XXX.10/</code>. Miks serdiviga, kuigi CA on usaldatud?</li>
 <li>Võta ära CA usaldus. Milline viga nüüd?</li>
-<li>Sulge Debian2 port 3306 ja ava <code>blogi</code> ja <code>wp</code>. Miks katki on ainult üks?</li>
+<li>Sulge Ubuntu port 3306 ja ava <code>blogi</code> ja <code>wp</code>. Miks katki on ainult üks?</li>
 </ol>
 </div>
 </section>
@@ -97,24 +97,24 @@ code{font-family:var(--mono);font-size:.92em}
 <div class="http" id="http"></div>
 </div>
 <div class="card">
-<h2>Debian1 virtuaalhostid (<code>apache2ctl -S</code>)</h2>
+<h2>Debiani virtuaalhostid (<code>apache2ctl -S</code>)</h2>
 <div id="vh"></div>
 </div>
 </section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
-const URLS=["http://wp.perenimi.local/","http://wp.perenimi.local/2026/11/tere/","http://blogi.perenimi.local/","http://www.perenimi.local/","http://perenimi.local/","http://10.0.XXX.10/","http://olematu.perenimi.local/","http://wp.perenimi.local/wp-config.php","https://wp.perenimi.local/","https://10.0.XXX.10/","https://blogi.perenimi.local/wp-admin/","https://mail.perenimi.local/"];
+const URLS=["http://wp.perenimi.local/","http://wp.perenimi.local/2026/11/tere/","http://blogi.perenimi.local/","http://www.perenimi.local/","http://perenimi.local/","http://192.168.XXX.10/","http://olematu.perenimi.local/","http://wp.perenimi.local/wp-config.php","https://wp.perenimi.local/","https://192.168.XXX.10/","https://blogi.perenimi.local/wp-admin/","https://mail.perenimi.local/"];
 $("urls").innerHTML=URLS.map(u=>`<button data-u="${u}">${u.replace(/^https?:\/\//,m=>m==="https://"?"🔒":"")}</button>`).join("");
 document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{$("url").value=b.dataset.u;go();});
 const o=k=>$("o_"+k).checked;
-const DNS={"wp.perenimi.local":["CNAME debian1.perenimi.local","10.0.XXX.10"],"blogi.perenimi.local":["CNAME debian1.perenimi.local","10.0.XXX.10"],
- "www.perenimi.local":[null,"10.0.XXX.10"],"perenimi.local":[null,"10.0.XXX.10"],"debian1.perenimi.local":[null,"10.0.XXX.10"],"mail.perenimi.local":[null,"10.0.XXX.30"]};
-const SAN=["www.perenimi.local","wp.perenimi.local","blogi.perenimi.local","perenimi.local","debian1.perenimi.local"];
+const DNS={"wp.perenimi.local":["CNAME debian.perenimi.local","192.168.XXX.10"],"blogi.perenimi.local":["CNAME debian.perenimi.local","192.168.XXX.10"],
+ "www.perenimi.local":[null,"192.168.XXX.10"],"perenimi.local":[null,"192.168.XXX.10"],"debian.perenimi.local":[null,"192.168.XXX.10"],"mail.perenimi.local":[null,"192.168.XXX.20"]};
+const SAN=["www.perenimi.local","wp.perenimi.local","blogi.perenimi.local","perenimi.local","debian.perenimi.local"];
 function vhosts(){
  const v=[];
- if(o("default"))v.push({file:"000-default.conf",port:80,name:"(ServerName puudub → debian1)",match:[],root:"/var/www/html",kind:"debdef"});
- if(o("vaike"))v.push({file:"000-vaike.conf",port:80,name:"debian1.perenimi.local",match:["debian1.perenimi.local"],root:"/var/www/vaike",kind:"vaike"});
+ if(o("default"))v.push({file:"000-default.conf",port:80,name:"(ServerName puudub → debian)",match:[],root:"/var/www/html",kind:"debdef"});
+ if(o("vaike"))v.push({file:"000-vaike.conf",port:80,name:"debian.perenimi.local",match:["debian.perenimi.local"],root:"/var/www/vaike",kind:"vaike"});
  const h=o("https");
  for(const [n,al,k] of [["blogi.perenimi.local",[],"wp"],["wp.perenimi.local",[],"wp"],["www.perenimi.local",["perenimi.local"],"www"]]){
   v.push({file:n+".conf",port:80,name:n,match:[n,...al],root:"/var/www/"+n,kind:h?"redir":k});
@@ -143,21 +143,21 @@ function go(){
   if(hop===5){add("bad","Liiga palju suunamisi järjest – brauser loobub.");page="<h3>Seda lehte ei saa avada</h3><p><b>ERR_TOO_MANY_REDIRECTS</b> – wp.perenimi.local suunas teid liiga palju kordi ümber.</p>";err=true;break;}
   // DNS
   let ip;
-  if(/^\d|^10\.0\.xxx/.test(host)){ip=host.toUpperCase().replace("XXX","XXX");ip=host.replace("xxx","XXX");if(hop===0)add("ok",`Aadress on IP – DNS-i ei küsita.`);}
+  if(/^\d/.test(host)){ip=host.toUpperCase().replace("XXX","XXX");ip=host.replace("xxx","XXX");if(hop===0)add("ok",`Aadress on IP – DNS-i ei küsita.`);}
   else{const d=DNS[host];
    if(!d){add("bad",`DNS: <code>${host}</code> → NXDOMAIN (tsoonis sellist nime pole).`);page=`<h3>Seda saiti ei leitud</h3><p><b>DNS_PROBE_FINISHED_NXDOMAIN</b><br>${host} serveri IP-aadressi ei leitud.</p>`;err=true;break;}
-   if(hop===0||!S.join("").includes(host+"</code> →"))add("ok",`DNS (Debian2): <code>${host}</code> → ${d[0]?d[0]+" → ":""}${d[1]}`);ip=d[1];}
-  if(ip==="10.0.XXX.30"){add("act","IP 10.0.XXX.30 on Ubuntu – see on teine Apache (Roundcube, peatükk 11), mitte Debian1.");
+   if(hop===0||!S.join("").includes(host+"</code> →"))add("ok",`DNS (Debian): <code>${host}</code> → ${d[0]?d[0]+" → ":""}${d[1]}`);ip=d[1];}
+  if(ip==="192.168.XXX.20"){add("act","IP 192.168.XXX.20 on Ubuntu – see on teine Apache (Roundcube, peatükk 12), mitte Debian.");
    page="<h3>Perenimi veebimeil</h3><p>Roundcube'i sisselogimisleht (Ubuntu).</p>";lock=scheme==="https"&&o("ca")?"🔒":"ⓘ";if(scheme==="https"&&!o("ca")){page="<h3>Teie ühendus pole privaatne</h3><p><b>NET::ERR_CERT_AUTHORITY_INVALID</b></p>";err=true;lock="⚠";}break;}
-  if(ip!=="10.0.XXX.10"){add("bad","Selle IP-ga masinat laboris pole – ühendus aegub.");page="<h3>ERR_CONNECTION_TIMED_OUT</h3>";err=true;break;}
+  if(ip!=="192.168.XXX.10"){add("bad","Selle IP-ga masinat laboris pole – ühendus aegub.");page="<h3>ERR_CONNECTION_TIMED_OUT</h3>";err=true;break;}
   const port=scheme==="https"?443:80;
-  if(port===443&&!o("https")){add("bad","TCP 10.0.XXX.10:443 → RST. Apache ei kuula porti 443, sest <code>ssl</code> moodul pole lubatud (ports.conf: <code>&lt;IfModule ssl_module&gt; Listen 443</code>).");
+  if(port===443&&!o("https")){add("bad","TCP 192.168.XXX.10:443 → RST. Apache ei kuula porti 443, sest <code>ssl</code> moodul pole lubatud (ports.conf: <code>&lt;IfModule ssl_module&gt; Listen 443</code>).");
    page="<h3>Seda lehte ei saa avada</h3><p><b>ERR_CONNECTION_REFUSED</b></p>";err=true;break;}
-  add("ok",`TCP ühendus 10.0.XXX.10:${port} – Apache võtab vastu.`);
+  add("ok",`TCP ühendus 192.168.XXX.10:${port} – Apache võtab vastu.`);
   if(port===443){
-   const isIp=/^\d|^10\.0/.test(host);
+   const isIp=/^\d/.test(host);
    const t=pick(443,isIp?"":host);
-   add("act",`TLS kätlus. SNI = <code>${isIp?"(puudub – IP-aadressi ei saadeta)":host}</code> → Apache valib serdi vhostist <b>${t.v.name}</b>${t.def?" (vaikehost pordil 443)":""}. Sert: debian1.crt, SAN: ${SAN.join(", ")}.`);
+   add("act",`TLS kätlus. SNI = <code>${isIp?"(puudub – IP-aadressi ei saadeta)":host}</code> → Apache valib serdi vhostist <b>${t.v.name}</b>${t.def?" (vaikehost pordil 443)":""}. Sert: debian.crt, SAN: ${SAN.join(", ")}.`);
    if(!o("ca")){add("bad","Brauser: serdi väljastaja „Perenimi Labori CA“ pole Windowsi usaldatud juursertide hulgas.");page="<h3>Teie ühendus pole privaatne</h3><p><b>NET::ERR_CERT_AUTHORITY_INVALID</b><br>Ründajad võivad üritada varastada teie andmeid saidilt "+host+".</p>";err=true;lock="⚠";break;}
    if(!SAN.includes(host)){add("bad",`Brauser: aadressiriba nimi <code>${host}</code> pole serdi SAN-väljal. Sert kehtib nimedele, mitte IP-aadressile.`);page="<h3>Teie ühendus pole privaatne</h3><p><b>NET::ERR_CERT_COMMON_NAME_INVALID</b><br>Selle serveri sert on väljastatud teisele nimele.</p>";err=true;lock="⚠";break;}
    add("ok","Sert kehtib: usaldatud CA allkiri ✓, nimi SAN-is ✓, kuupäevad ✓.");lock="🔒";
@@ -170,7 +170,7 @@ function go(){
   if(v.kind==="vaike"){H.push(`<span class="s">HTTP/1.1 200 OK</span>`);page="<h3>Tundmatu sait</h3>";add("ok","DocumentRoot /var/www/vaike → index.html");break;}
   if(v.kind==="debdef"){H.push(`<span class="s">HTTP/1.1 200 OK</span>`);page="<h3>Apache2 Debian Default Page</h3><p>It works! … This is the default welcome page used to test the correct operation of the Apache2 server…</p>";add("warn","Debiani vaikesait /var/www/html – tavaliselt keelatakse: <code>a2dissite 000-default</code>.");break;}
   if(v.kind==="www"){
-   if(path==="/"||path==="/index.html"){H.push(`<span class="s">HTTP/1.1 200 OK\nContent-Type: text/html</span>`);page=`<h3>www.perenimi.local</h3><p>Debian1 · Apache2 vhost töötab.</p>`;add("ok",`${v.root}/index.html`);}
+   if(path==="/"||path==="/index.html"){H.push(`<span class="s">HTTP/1.1 200 OK\nContent-Type: text/html</span>`);page=`<h3>www.perenimi.local</h3><p>Debian · Apache2 vhost töötab.</p>`;add("ok",`${v.root}/index.html`);}
    else{H.push(`<span class="s">HTTP/1.1 404 Not Found</span>`);page="<h3>Not Found</h3><p>The requested URL was not found on this server.</p>";err=true;add("warn","Faili pole.");}
    break;}
   // WordPress
@@ -186,9 +186,9 @@ function go(){
    H.push(`<span class="s">HTTP/1.1 200 OK\nContent-Type: application/x-httpd-php</span>`);
    page=file==="/wp-config.php"?`<pre style="white-space:pre-wrap;font-size:12px">&lt;?php\ndefine( 'DB_NAME', '${site.startsWith("wp")?"wp_db":"blogi_db"}' );\ndefine( 'DB_USER', '${site.startsWith("wp")?"wp_kasutaja":"blogi_kasutaja"}' );\ndefine( 'DB_PASSWORD', '${site.startsWith("wp")?"WpParool.2026!":"BlogiParool.2026!"}' );   ⚠ PAROOL NÄHTAV!</pre>`:"<p>Brauser pakub faili <code>index.php</code> alla laadida.</p>";err=true;break;}
   if(file==="/wp-config.php"){add("ok","PHP käivitab faili – see ainult defineerib konstante ega väljasta midagi → tühi leht. Paroole ei näe.");H.push(`<span class="s">HTTP/1.1 200 OK\nContent-Length: 0</span>`);page="<p style='color:var(--quiet)'>(tühi leht)</p>";break;}
-  if(site.startsWith("blogi")&&o("db")){add("bad","PHP → mysqli_connect('10.0.XXX.20:3306') → ühendus aegub (Debian2 tulemüür).");H.push(`<span class="s">HTTP/1.1 500 Internal Server Error</span>`);page="<h3>Error establishing a database connection</h3>";err=true;break;}
+  if(site.startsWith("blogi")&&o("db")){add("bad","PHP → mysqli_connect('192.168.XXX.20:3306') → ühendus aegub (Ubuntu tulemüür).");H.push(`<span class="s">HTTP/1.1 500 Internal Server Error</span>`);page="<h3>Error establishing a database connection</h3>";err=true;break;}
   if(port===443&&!o("siteurl")){add("warn",`WordPressi <code>siteurl</code> on <code>http://${site}</code> → WordPress suunab „õigele“ aadressile http-ga…`);H.push(`<span class="s">HTTP/1.1 301 Moved Permanently\nLocation: http://${site}${path}</span>`);url=`http://${site}${path}`;continue;}
-  add("ok",`PHP käivitab WordPressi (${site.startsWith("wp")?"andmebaas localhost":"andmebaas 10.0.XXX.20"}).`);
+  add("ok",`PHP käivitab WordPressi (${site.startsWith("wp")?"andmebaas localhost":"andmebaas 192.168.XXX.20"}).`);
   H.push(`<span class="s">HTTP/1.1 200 OK\nContent-Type: text/html; charset=UTF-8</span>`);
   page=path.startsWith("/wp-admin")?`<h3>Logi sisse</h3><p>${site} · Kasutajanimi · Parool</p>`:isPost?`<h3>Tere!</h3><p>Postitus saidil ${site}</p>`:`<h3>${site.split(".")[0]==="wp"?"Minu WordPress":"Blogi"}</h3><p>Tere tulemast WordPressi!</p>`;
   break;

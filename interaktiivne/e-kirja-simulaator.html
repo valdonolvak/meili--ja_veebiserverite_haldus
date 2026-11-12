@@ -57,7 +57,7 @@ table.auth td,table.auth th{border:1px solid var(--line);padding:4px 8px;text-al
 <header>
 <a href="index.html">← Interaktiivsed harjutused</a> · <a href="../">Õppematerjali sisukord</a>
 <h1>E-kirja teekonna simulaator</h1>
-<p>Vali, kes saadab, kellelt ja kellele, ning lülita sisse rikkeid. Simulaator näitab SMTP vestlust samm-sammult, Ubuntu <code>/var/log/mail.log</code> ridu ja seda, kus ahel katkeb. Serveri seadistus vastab peatükkidele 9–12 (domeen <code>perenimi.local</code>).</p>
+<p>Vali, kes saadab, kellelt ja kellele, ning lülita sisse rikkeid. Simulaator näitab SMTP vestlust samm-sammult, Ubuntu <code>/var/log/mail.log</code> ridu ja seda, kus ahel katkeb. Serveri seadistus vastab peatükkidele 10–13 (domeen <code>perenimi.local</code>).</p>
 </header>
 <main>
 <section>
@@ -68,7 +68,7 @@ table.auth td,table.auth th{border:1px solid var(--line);padding:4px 8px;text-al
 <option value="rc">Roundcube veebimeil → port 587 (STARTTLS + AUTH)</option>
 <option value="tb">Thunderbird Windowsis → port 587 (STARTTLS + AUTH)</option>
 <option value="tbplain">Thunderbird → port 587, turvalisus „Puudub“</option>
-<option value="lab25">Debian1 käsurealt (swaks) → port 25, ilma paroolita</option>
+<option value="lab25">Debian käsurealt (swaks) → port 25, ilma paroolita</option>
 </select>
 <label class="f" for="login">Sisselogija (SASL kasutaja)</label>
 <select id="login"><option value="mari">mari</option><option value="jaan">jaan</option></select>
@@ -84,7 +84,7 @@ table.auth td,table.auth th{border:1px solid var(--line);padding:4px 8px;text-al
 <label><input type="checkbox" id="f_dovecot"> <span>Dovecot on peatatud <small>(systemctl stop dovecot)</small></span></label>
 <label><input type="checkbox" id="f_dkim"> <span>OpenDKIM on peatatud</span></label>
 <label><input type="checkbox" id="f_helo"> <span>HELO piirangus puudub <code>permit_sasl_authenticated</code></span></label>
-<label><input type="checkbox" id="f_mynet"> <span><code>mynetworks = 10.0.XXX.0/24</code> <small>(liiga lai)</small></span></label>
+<label><input type="checkbox" id="f_mynet"> <span><code>mynetworks = 192.168.XXX.0/24</code> <small>(liiga lai)</small></span></label>
 <label><input type="checkbox" id="f_rc143"> <span>Roundcube: <code>imap_host = localhost:143</code> <small>(paketi vaikeväärtus)</small></span></label>
 <label><input type="checkbox" id="f_ca"> <span>Ubuntu ei usalda labori CA-d <small>(update-ca-certificates tegemata)</small></span></label>
 <label><input type="checkbox" id="f_ufw"> <span>ufw: port 587 lubamata</span></label>
@@ -141,26 +141,26 @@ function build(c){
  const auth=c.kanal!=="lab25";
  const rc=c.kanal==="rc";
  const local=c.to.endsWith("@perenimi.local");
- const cip=c.kanal==="lab25"?"10.0.XXX.10":(rc?"10.0.XXX.30":"10.0.XXX.100");
- const cname=c.kanal==="lab25"?"debian1.perenimi.local":(rc?"mail.perenimi.local":"unknown");
- const helo=c.kanal==="lab25"?"debian1.perenimi.local":(rc?"mail.perenimi.local":"DESKTOP-AB12");
+ const cip=c.kanal==="lab25"?"192.168.XXX.10":(rc?"192.168.XXX.20":"192.168.XXX.50");
+ const cname=c.kanal==="lab25"?"debian.perenimi.local":(rc?"mail.perenimi.local":"unknown");
+ const helo=c.kanal==="lab25"?"debian.perenimi.local":(rc?"mail.perenimi.local":"DESKTOP-AB12");
  const svc=c.kanal==="lab25"?"postfix/smtpd":"postfix/submission/smtpd";
 
- S("klient","i",{rc:"Mari avab brauseris https://mail.perenimi.local ja logib sisse.",tb:"Thunderbird Windowsi kliendis (10.0.XXX.100) saadab kirja.",tbplain:"Thunderbird, mille kontol on väljuva serveri turvalisuseks valitud „Puudub“.",lab25:"Debian1-s käivitatakse swaks ilma autentimiseta pordile 25 (nagu teine meiliserver)."}[c.kanal],"ok");
+ S("klient","i",{rc:"Mari avab brauseris https://mail.perenimi.local ja logib sisse.",tb:"Thunderbird Windowsi kliendis (192.168.XXX.50) saadab kirja.",tbplain:"Thunderbird, mille kontol on väljuva serveri turvalisuseks valitud „Puudub“.",lab25:"Debianis käivitatakse swaks ilma autentimiseta pordile 25 (nagu teine meiliserver)."}[c.kanal],"ok");
 
  if(rc){
   S("rc","i","Roundcube (PHP) kontrollib parooli IMAP-sisselogimisega Dovecotti.","act");
   if(c.rc143){S("rc","c","→ IMAP localhost:143","act");S("rc","s e","Connection refused – port 143 on Dovecotis suletud (port = 0)","bad");
-   steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: Login failed for mari against localhost from 10.0.XXX.100. Could not connect to localhost:143: Connection refused",w:1});
-   END("bad","Roundcube'i sisselogimine ebaõnnestub: „Ühendus IMAP-serveriga ebaõnnestus“. Paketi vaikeseadistus ei sobi karmistatud serveriga – vaja on <code>ssl://mail.perenimi.local:993</code> (11.3).");return;}
+   steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: Login failed for mari against localhost from 192.168.XXX.50. Could not connect to localhost:143: Connection refused",w:1});
+   END("bad","Roundcube'i sisselogimine ebaõnnestub: „Ühendus IMAP-serveriga ebaõnnestus“. Paketi vaikeseadistus ei sobi karmistatud serveriga – vaja on <code>ssl://mail.perenimi.local:993</code> (12.3).");return;}
   if(c.ca){S("rc","c","→ IMAP ssl://mail.perenimi.local:993","act");S("rc","s e","TLS: certificate verify failed (unable to get local issuer certificate)","bad");
    steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: … SSL operation failed … certificate verify failed",w:1});
-   END("bad","Roundcube ei usalda Dovecoti serti, sest Ubuntu ise ei usalda labori CA-d. Lahendus: <code>ca.crt</code> → <code>/usr/local/share/ca-certificates/</code> ja <code>update-ca-certificates</code> (7.8).");return;}
+   END("bad","Roundcube ei usalda Dovecoti serti, sest Ubuntu ise ei usalda labori CA-d. Lahendus: <code>ca.crt</code> → <code>/usr/local/share/ca-certificates/</code> ja <code>update-ca-certificates</code> (8.8).");return;}
   if(c.dovecot){S("rc","c","→ IMAP ssl://mail.perenimi.local:993","act");S("rc","s e","Connection refused – Dovecot ei tööta","bad");
    END("bad","Roundcube'i ei saa sisse logida, sest IMAP-server (Dovecot) on maas. <code>systemctl status dovecot</code>.");return;}
   S("rc","c","→ a1 LOGIN mari ••••••  (ssl://mail.perenimi.local:993)","act");
   if(c.pw==="bad"){S("rc","s e","a1 NO [AUTHENTICATIONFAILED] Authentication failed.","bad");
-   steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: Login failed for mari@perenimi.local against mail.perenimi.local from 10.0.XXX.100. AUTHENTICATE PLAIN: Authentication failed.",w:1});
+   steps.push({log:"(/var/log/roundcube/errors.log) IMAP Error: Login failed for mari@perenimi.local against mail.perenimi.local from 192.168.XXX.50. AUTHENTICATE PLAIN: Authentication failed.",w:1});
    END("bad","Vale parool – Roundcube näitab „Sisselogimine ebaõnnestus“. fail2ban-i vangla <code>roundcube-auth</code> loeb neid ridu; 5 korda 10 minuti jooksul = IP blokeeritakse.");return;}
   S("rc","s g","a1 OK Logged in","ok");
   S("rc","i","Mari kirjutab kirja ja vajutab „Saada“. Roundcube ühendub Postfixiga – SMTP klient on nüüd Ubuntu ise.","ok");
@@ -168,11 +168,11 @@ function build(c){
 
  // tulemüür
  if(!rc && c.kanal!=="lab25"){
-  if(c.ufw){S("fw","i","TCP SYN 10.0.XXX.100 → 10.0.XXX.30:587","act");S("fw","s e","(vastust ei tule – ufw viskab paketi ära)","bad");
+  if(c.ufw){S("fw","i","TCP SYN 192.168.XXX.50 → 192.168.XXX.20:587","act");S("fw","s e","(vastust ei tule – ufw viskab paketi ära)","bad");
    END("bad","Thunderbird: „Ühendus serveriga aegus“. Port 587 pole tulemüüris lubatud: <code>sudo ufw allow 587/tcp</code>. Roundcube'i see ei mõjuta, sest tema ühendub samas masinas.");return;}
-  if(c.ban){S("fw","i","TCP SYN 10.0.XXX.100 → 10.0.XXX.30:587","act");S("fw","s e","REJECT (fail2ban: f2b-postfix-sasl)","bad");
-   steps.push({log:"(/var/log/fail2ban.log) fail2ban.actions [..]: NOTICE  [postfix-sasl] Ban 10.0.XXX.100"});
-   END("bad","Windowsi IP on blokeeritud, sest varem tuli sealt liiga palju valesid paroole. <code>sudo fail2ban-client set postfix-sasl unbanip 10.0.XXX.100</code>.");return;}
+  if(c.ban){S("fw","i","TCP SYN 192.168.XXX.50 → 192.168.XXX.20:587","act");S("fw","s e","REJECT (fail2ban: f2b-postfix-sasl)","bad");
+   steps.push({log:"(/var/log/fail2ban.log) fail2ban.actions [..]: NOTICE  [postfix-sasl] Ban 192.168.XXX.50"});
+   END("bad","Windowsi IP on blokeeritud, sest varem tuli sealt liiga palju valesid paroole. <code>sudo fail2ban-client set postfix-sasl unbanip 192.168.XXX.50</code>.");return;}
  }
  S("fw","i",rc?"Roundcube ühendub samas masinas – tulemüür ei puutu.":"Port "+(c.kanal==="lab25"?"25":"587")+" on lubatud.","ok");
 
@@ -221,21 +221,21 @@ function build(c){
  if(auth){
   if(c.helo && !rc){L(`${svc}[4211]: NOQUEUE: reject: RCPT from unknown[${cip}]: 504 5.5.2 <${helo}>: Helo command rejected: need fully-qualified hostname; from=<${c.from}> to=<${c.to}> proto=ESMTP helo=<${helo}>`,1);
    S("rules","s e","504 5.5.2 <"+helo+">: Helo command rejected: need fully-qualified hostname","bad");
-   END("bad","Windows tutvustab end lühinimega <code>DESKTOP-AB12</code>. Kui HELO piirang ei alga <code>permit_mynetworks, permit_sasl_authenticated</code>, lükatakse tagasi ka sisseloginud kasutaja (9.5). Roundcube'i see ei mõjuta, sest Ubuntu ütleb HELO-s oma FQDN-i.");return;}
+   END("bad","Windows tutvustab end lühinimega <code>DESKTOP-AB12</code>. Kui HELO piirang ei alga <code>permit_mynetworks, permit_sasl_authenticated</code>, lükatakse tagasi ka sisseloginud kasutaja (10.5). Roundcube'i see ei mõjuta, sest Ubuntu ütleb HELO-s oma FQDN-i.");return;}
   const owner=c.from.split("@")[0];
   if(!c.from.endsWith("@perenimi.local") || owner!==c.login){
    L(`${svc}[4211]: NOQUEUE: reject: RCPT from unknown[${cip}]: 553 5.7.1 <${c.from}>: Sender address rejected: not owned by user ${c.login}; from=<${c.from}> to=<${c.to}> proto=ESMTP helo=<${helo}>`,1);
    S("rules","s e","553 5.7.1 <"+c.from+">: Sender address rejected: not owned by user "+c.login,"bad");
-   END("bad","<code>reject_sender_login_mismatch</code>: kasutaja <b>"+c.login+"</b> ei tohi saata aadressilt <b>"+c.from+"</b>. Nii ei saa sisseloginud kasutaja teise nime all kirju saata (9.5, login_maps.regexp).");return;}
+   END("bad","<code>reject_sender_login_mismatch</code>: kasutaja <b>"+c.login+"</b> ei tohi saata aadressilt <b>"+c.from+"</b>. Nii ei saa sisseloginud kasutaja teise nime all kirju saata (10.5, login_maps.regexp).");return;}
  } else {
   if(!local){
    if(c.mynet){S("rules","s e","250 2.1.5 Ok   ⚠ AVATUD RELEE!","warn");
-    S("rules","i","10.0.XXX.10 on mynetworks-is → permit_mynetworks lubab ilma paroolita saata ükskõik kuhu.","warn");}
+    S("rules","i","192.168.XXX.10 on mynetworks-is → permit_mynetworks lubab ilma paroolita saata ükskõik kuhu.","warn");}
    else{L(`postfix/smtpd[4211]: NOQUEUE: reject: RCPT from ${cname}[${cip}]: 554 5.7.1 <${c.to}>: Relay access denied; from=<${c.from}> to=<${c.to}> proto=ESMTP helo=<${helo}>`,1);
     S("rules","s e","554 5.7.1 <"+c.to+">: Relay access denied","bad");
     END("ok","<b>Nii peabki olema.</b> Port 25 ilma autentimiseta võtab vastu ainult kirju meie oma domeenile. Võõrasse domeeni saata ei saa – server pole avatud relee (<code>reject_unauth_destination</code>).");return;}
   } else if(c.from.endsWith("@perenimi.local")||c.from.endsWith("@pank.ee")){
-   S("rules","i",c.from.endsWith("@pank.ee")?"Pordil 25 ei kontrolli meie seadistus sissetuleva kirja SPF-i (vt 10.11) – võltsitud saatja läheb läbi!":"Saaja on meie domeenis → reject_unauth_destination lubab.","warn");
+   S("rules","i",c.from.endsWith("@pank.ee")?"Pordil 25 ei kontrolli meie seadistus sissetuleva kirja SPF-i (vt 11.11) – võltsitud saatja läheb läbi!":"Saaja on meie domeenis → reject_unauth_destination lubab.","warn");
   }
  }
  S("rules","s","250 2.1.5 Ok","ok");
@@ -265,7 +265,7 @@ function build(c){
   S("lmtp","s g","250 2.0.0 <"+c.to+"> Saved → /home/jaan/Maildir/new/","ok");
   S("dest","i","Jaan näeb kirja Roundcube'is (IMAP 993).","ok");
   let msg="Kiri jõudis kohale.";
-  if(c.from.endsWith("@pank.ee"))msg+=" <b>Aga:</b> võltsitud saatja <code>direktor@pank.ee</code> pääses läbi, sest sissetulevate kirjade SPF/DMARC kontrolli pole (10.11). Päris serveris lükkaks DMARC selle tagasi.";
+  if(c.from.endsWith("@pank.ee"))msg+=" <b>Aga:</b> võltsitud saatja <code>direktor@pank.ee</code> pääses läbi, sest sissetulevate kirjade SPF/DMARC kontrolli pole (11.11). Päris serveris lükkaks DMARC selle tagasi.";
   if(c.mynet&&c.kanal==="lab25")msg+=" Pane tähele: kiri läks läbi ilma paroolita, sest kogu labori võrk on mynetworks-is.";
   if(c.dkim)msg+=" Kirjal puudub DKIM-allkiri (OpenDKIM oli maas).";
   END(c.from.endsWith("@pank.ee")||c.dkim||c.mynet?"warn":"ok",msg);
@@ -277,7 +277,7 @@ function build(c){
  if(c.sasl){L(`postfix/smtp[4230]: warning: SASL authentication failure: No worthy mechs found`,1);
   L(`postfix/smtp[4230]: ${q}: to=<${c.to}>, relay=smtp.gmail.com[142.250.74.108]:587, delay=0.9, dsn=4.7.0, status=deferred (SASL authentication failed; cannot authenticate to server smtp.gmail.com[142.250.74.108]: no mechanism available)`,1);
   S("relay","s e","status=deferred – no mechanism available","bad");
-  END("warn","Postfixil pole SASL-kliendi mooduleid (PLAIN/LOGIN), seega ei saa ta relay'sse sisse logida. <code>sudo apt install libsasl2-modules</code>, siis <code>postqueue -f</code> (12.4).");return;}
+  END("warn","Postfixil pole SASL-kliendi mooduleid (PLAIN/LOGIN), seega ei saa ta relay'sse sisse logida. <code>sudo apt install libsasl2-modules</code>, siis <code>postqueue -f</code> (13.4).");return;}
  if(c.relaypw){L(`postfix/smtp[4230]: ${q}: to=<${c.to}>, relay=smtp.gmail.com[142.250.74.108]:587, delay=1.2, dsn=4.7.8, status=deferred (SASL authentication failed; server smtp.gmail.com[142.250.74.108] said: 535-5.7.8 Username and Password not accepted.)`,1);
   S("relay","s e","535-5.7.8 Username and Password not accepted","bad");
   END("warn","Relay lükkas parooli tagasi. Gmail vajab <b>rakenduse parooli</b>. Paranda <code>/etc/postfix/sasl_passwd</code> ja käivita <code>sudo postmap /etc/postfix/sasl_passwd</code> – ilma postmap'ita jääb kehtima vana parool.");return;}

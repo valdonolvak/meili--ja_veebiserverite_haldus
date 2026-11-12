@@ -1,14 +1,14 @@
-## 9. Postfix ja Dovecot (Ubuntu)
+## 10. Postfix ja Dovecot (Ubuntu)
 
 Selles peatükis ehitame Ubuntu masinasse töötava meiliserveri: **Postfix** võtab kirju vastu ja saadab, **Dovecot** hoiab postkaste, kontrollib paroole ja annab kirjad IMAP-iga klientidele. Kõik ühendused on TLS-iga ja saata saab ainult sisseloginud kasutaja.
 
 ![Ubuntu meiliserveri sisemus](joonised/09-postfix-dovecot.png)
 
-*Joonis 9.1: Postfixi ja Dovecoti koostöö*
+*Joonis 10.1: Postfixi ja Dovecoti koostöö*
 
-> **Eeldused:** Ubuntu hostinimi on `mail`, `hostname -f` annab `mail.perenimi.local` (2.6); DNS-is on `mail` A-, MX- ja PTR-kirje (3.6–3.7); serdid on paigaldatud (7.8). Kontrolli: `dig +short perenimi.local MX` → `10 mail.perenimi.local.`
+> **Eeldused:** Ubuntu hostinimi on `mail`, `hostname -f` annab `mail.perenimi.local` (2.6); DNS-is on `mail` A-, MX- ja PTR-kirje (3.6–3.7); serdid on paigaldatud (8.8). Kontrolli: `dig +short perenimi.local MX` → `10 mail.perenimi.local.`
 
-### 9.1 Mõisted
+### 10.1 Mõisted
 
 | Termin | Selgitus |
 | --- | --- |
@@ -22,7 +22,7 @@ Selles peatükis ehitame Ubuntu masinasse töötava meiliserveri: **Postfix** v�
 | `smtpd` / `smtp` | Postfixi **server**pool (võtab vastu) / **klient**pool (saadab teistesse serveritesse). Seepärast on seadetel eesliited `smtpd_` ja `smtp_`. |
 | Piirangud (*restrictions*) | Reeglite loend, mida kontrollitakse vasakult paremale; esimene `permit` või `reject` otsustab. |
 
-### 9.2 Paigaldus
+### 10.2 Paigaldus
 
 **Ubuntu:**
 
@@ -39,7 +39,7 @@ Postfixi paigaldusdialoog:
 
 Dialoogi saab hiljem uuesti käivitada: `sudo dpkg-reconfigure postfix`. `swaks` on SMTP testimise tööriist, `mailutils` annab käsu `mail`.
 
-### 9.3 Postfix: põhiseaded
+### 10.3 Postfix: põhiseaded
 
 **Ubuntu:**
 
@@ -72,7 +72,7 @@ sudo postconf -e \
 | `message_size_limit` | kirja maksimumsuurus 25 MB |
 | `smtputf8_enable = no` | Dovecot 2.3 LMTP ei toeta SMTPUTF8 laiendust. Ilma selle reata **lükatakse tagasi** kohalikud kirjad, mille pealkirjas on täpitähed ja mis on saadetud käsuga `mail`/`sendmail` (`status=bounced (SMTPUTF8 is required, but was not offered…)`). Roundcube ja Thunderbird kodeerivad pealkirja ise ega ole mõjutatud. |
 
-### 9.4 Postfix: TLS
+### 10.4 Postfix: TLS
 
 ```bash
 sudo postconf -e \
@@ -87,10 +87,10 @@ sudo postconf -e \
   'smtp_tls_CApath = /etc/ssl/certs'
 ```
 
-- `smtpd_tls_security_level = may` – pordil 25 pakutakse STARTTLS-i, kuid ei nõuta (internetis ei toeta kõik serverid TLS-i). Pordil 587 teeme selle kohustuslikuks (9.6).
+- `smtpd_tls_security_level = may` – pordil 25 pakutakse STARTTLS-i, kuid ei nõuta (internetis ei toeta kõik serverid TLS-i). Pordil 587 teeme selle kohustuslikuks (10.6).
 - `smtpd_tls_auth_only = yes` – parooliga sisselogimist pakutakse **alles pärast TLS-i**.
 
-### 9.5 Postfix: autentimine ja piirangud
+### 10.5 Postfix: autentimine ja piirangud
 
 ```bash
 sudo postconf -e \
@@ -127,7 +127,7 @@ sudo nano /etc/postfix/login_maps.regexp
 postmap -q "mari@perenimi.local" regexp:/etc/postfix/login_maps.regexp     # mari, mari@perenimi.local
 ```
 
-### 9.6 Postfix: master.cf – pordid 587 ja 465
+### 10.6 Postfix: master.cf – pordid 587 ja 465
 
 Failis `/etc/postfix/master.cf` on read `#submission` ja `#submissions` välja kommenteeritud. Lisa faili **lõppu**:
 
@@ -168,7 +168,7 @@ Veerud: teenus, tüüp, privaatne, kasutaja-õigused, **chroot (`y`)**, ärkamis
 sudo postfix check            # tühi väljund = OK
 ```
 
-### 9.7 Dovecot
+### 10.7 Dovecot
 
 Ubuntu Dovecoti seadistus on jagatud ~20 failiks kaustas `/etc/dovecot/conf.d/`. Nende ükshaaval muutmise asemel paneme **kõik oma seaded ühte faili** `/etc/dovecot/local.conf` – põhifail `dovecot.conf` loeb selle viimasena ja selle väärtused kehtivad.
 
@@ -266,7 +266,7 @@ sudo ss -tlnp | grep -E ':(25|465|587|993)\b'
 ls -l /var/spool/postfix/private/ | grep -E 'auth|dovecot-lmtp'
 ```
 
-### 9.8 Kasutajad ja aliased
+### 10.8 Kasutajad ja aliased
 
 **Ubuntu:**
 
@@ -298,7 +298,7 @@ sudo doveadm auth test mari              # passdb: mari auth succeeded
 sudo doveadm user mari                   # home: /home/mari, mail: maildir:~/Maildir
 ```
 
-### 9.9 Tulemüür
+### 10.9 Tulemüür
 
 **Ubuntu:**
 
@@ -310,7 +310,7 @@ sudo ufw allow 993/tcp
 sudo ufw status
 ```
 
-### 9.10 Testimine
+### 10.10 Testimine
 
 Kõik testid tee **Ubuntus**. Logi jälgimiseks ava teine SSH-aken: `sudo tail -f /var/log/mail.log`.
 
@@ -324,7 +324,7 @@ sudo ls /home/mari/Maildir/new/
 **Test 2 – port 25 väljastpoolt (nagu teine server):**
 
 ```bash
-swaks --server 10.0.XXX.30 --helo test.perenimi.local \
+swaks --server 192.168.XXX.20 --helo test.perenimi.local \
       --from jaan@perenimi.local --to mari@perenimi.local
 ```
 
@@ -333,7 +333,7 @@ Oodatav: `<-  250 2.0.0 Ok: queued as …`
 **Test 3 – avatud relee test (PEAB ebaõnnestuma):**
 
 ```bash
-swaks --server 10.0.XXX.30 --helo test.example.org \
+swaks --server 192.168.XXX.20 --helo test.example.org \
       --from jaan@perenimi.local --to keegi@example.com
 ```
 
@@ -384,7 +384,7 @@ curl -s --url "imaps://mail.perenimi.local/INBOX" -u mari -X "SEARCH ALL"
 sudo doveadm mailbox list -u mari         # INBOX, Drafts, Sent, Junk, Trash
 ```
 
-### 9.11 Kirja päiste lugemine
+### 10.11 Kirja päiste lugemine
 
 ```bash
 sudo bash -c 'cat /home/mari/Maildir/new/$(ls -t /home/mari/Maildir/new | head -1)'
@@ -392,10 +392,10 @@ sudo bash -c 'cat /home/mari/Maildir/new/$(ls -t /home/mari/Maildir/new | head -
 
 `Received:` päised loetakse **alt üles** – alumine on esimene server, mille kaudu kiri läks. Vaata, kas seal on `with ESMTPSA` (S = TLS, A = autenditud).
 
-### 9.12 Logirea anatoomia
+### 10.12 Logirea anatoomia
 
 ```text
-postfix/submission/smtpd[6143]: 64EDDC48D4: client=unknown[10.0.XXX.100], sasl_method=LOGIN, sasl_username=mari
+postfix/submission/smtpd[6143]: 64EDDC48D4: client=unknown[192.168.XXX.50], sasl_method=LOGIN, sasl_username=mari
 postfix/cleanup[6150]:          64EDDC48D4: message-id=<…>
 postfix/qmgr[6133]:             64EDDC48D4: from=<mari@perenimi.local>, size=1282, nrcpt=1 (queue active)
 postfix/lmtp[6149]:             64EDDC48D4: to=<jaan@perenimi.local>, relay=mail.perenimi.local[private/dovecot-lmtp], dsn=2.0.0, status=sent

@@ -1,6 +1,6 @@
-## 3. DNS ja BIND9 (Debian2)
+## 3. DNS ja BIND9 (Debian)
 
-DNS (*Domain Name System*) tõlgib nimed IP-aadressideks. Ilma DNS-ita ei leia brauser saiti `wp.perenimi.local` ega meiliserver teab, kuhu `@perenimi.local` kirjad saata. Selles peatükis teeme Debian2-st **domeeni `perenimi.local` autoriteetse nimeserveri** ja kogu labori **rekursiivse nimelahendaja**.
+DNS (*Domain Name System*) tõlgib nimed IP-aadressideks. Ilma DNS-ita ei leia brauser saiti `wp.perenimi.local` ega meiliserver teab, kuhu `@perenimi.local` kirjad saata. Selles peatükis teeme Debianist **domeeni `perenimi.local` autoriteetse nimeserveri** ja kogu labori **rekursiivse nimelahendaja**.
 
 ![Nimelahendus: kes vastab küsimusele](joonised/03-dns-paring.png)
 
@@ -11,10 +11,10 @@ DNS (*Domain Name System*) tõlgib nimed IP-aadressideks. Ilma DNS-ita ei leia b
 | Termin | Selgitus | Näide laboris |
 | --- | --- | --- |
 | Tsoon (*zone*) | Domeeni osa, mille kirjeid üks server haldab. | `perenimi.local` |
-| Autoriteetne server | Server, kellel on tsooni originaalandmed; vastus märgitakse lipuga `aa`. | Debian2 tsoonile `perenimi.local` |
-| Rekursiivne server | Otsib klientide eest vastuse ka võõraste domeenide kohta. | Debian2 küsib `debian.org` edastajatelt |
+| Autoriteetne server | Server, kellel on tsooni originaalandmed; vastus märgitakse lipuga `aa`. | Debian tsoonile `perenimi.local` |
+| Rekursiivne server | Otsib klientide eest vastuse ka võõraste domeenide kohta. | Debian küsib `debian.org` edastajatelt |
 | Edastaja (*forwarder*) | Teine nimeserver, kellelt BIND küsib kõike, mida ise ei tea. | kooli DNS, `1.1.1.1` |
-| Pöördtsoon (*reverse zone*) | IP → nimi. Nimi on IP võrguosa tagurpidi + `.in-addr.arpa`. | `XXX.0.10.in-addr.arpa` |
+| Pöördtsoon (*reverse zone*) | IP → nimi. Nimi on IP võrguosa tagurpidi + `.in-addr.arpa`. | `XXX.168.192.in-addr.arpa` |
 | TTL (*Time To Live*) | Mitu sekundit tohib vastust vahemälus hoida. | `3600` |
 | SOA (*Start of Authority*) | Tsooni esimene kirje: peamine server, admini e-post, **seerianumber**, ajastused. | `ns1.perenimi.local.` |
 | Seerianumber | Peab **iga muudatusega suurenema** – teisesed (*secondary*) serverid võrdlevad seda ja laadivad tsooni alla ainult siis, kui number on kasvanud. Kuju `AAAAKKPPNN`. | `2026111201` |
@@ -26,20 +26,20 @@ DNS (*Domain Name System*) tõlgib nimed IP-aadressideks. Ilma DNS-ita ei leia b
 
 | Tüüp | Tähendus | Näide |
 | --- | --- | --- |
-| A | nimi → IPv4 | `mail IN A 10.0.XXX.30` |
+| A | nimi → IPv4 | `mail IN A 192.168.XXX.20` |
 | AAAA | nimi → IPv6 | (laboris ei kasuta) |
-| CNAME | nimi on teise nime **varjunimi** | `wp IN CNAME debian1` |
+| CNAME | nimi on teise nime **varjunimi** | `wp IN CNAME debian` |
 | NS | tsooni nimeserver | `@ IN NS ns1.perenimi.local.` |
 | MX | domeeni meiliserver ja prioriteet (väiksem = eelistatum) | `@ IN MX 10 mail.perenimi.local.` |
 | TXT | vaba tekst; kasutatakse SPF, DKIM, DMARC jaoks | `@ IN TXT "v=spf1 mx -all"` |
-| PTR | IP → nimi (pöördtsoonis) | `30 IN PTR mail.perenimi.local.` |
+| PTR | IP → nimi (pöördtsoonis) | `20 IN PTR mail.perenimi.local.` |
 | SOA | tsooni parameetrid | iga tsoonifaili algus |
 
 > **CNAME-i reeglid:** CNAME-i kõrval ei tohi samal nimel olla muid kirjeid ning MX ja NS ei tohi osutada CNAME-ile. Seepärast on `mail` **A-kirje**, mitte CNAME.
 
 ### 3.3 Paigaldus
 
-**Debian2:**
+**Debian:**
 
 ```bash
 sudo apt install -y bind9 bind9-utils bind9-dnsutils
@@ -60,7 +60,7 @@ Seadistusfailid kaustas `/etc/bind/`:
 
 ### 3.4 Üldseaded: named.conf.options
 
-**Debian2:**
+**Debian:**
 
 ```bash
 sudo cp /etc/bind/named.conf.options /etc/bind/named.conf.options.orig
@@ -73,7 +73,7 @@ Asenda kogu sisu:
 // Kes on "oma" – ainult nendelt võtame päringuid vastu
 acl labor {
     127.0.0.0/8;
-    10.0.XXX.0/24;
+    192.168.XXX.0/24;
 };
 
 options {
@@ -104,7 +104,7 @@ options {
 
 ### 3.5 Tsoonide kirjeldus: named.conf.local
 
-**Debian2:**
+**Debian:**
 
 ```bash
 sudo nano /etc/bind/named.conf.local
@@ -118,10 +118,10 @@ zone "perenimi.local" {
     allow-update { none; };
 };
 
-// Pöördtsoon: IP -> nimi  (10.0.XXX.0/24 -> XXX.0.10.in-addr.arpa)
-zone "XXX.0.10.in-addr.arpa" {
+// Pöördtsoon: IP -> nimi  (192.168.XXX.0/24 -> XXX.168.192.in-addr.arpa)
+zone "XXX.168.192.in-addr.arpa" {
     type primary;
-    file "/etc/bind/zones/db.10.0.XXX";
+    file "/etc/bind/zones/db.192.168.XXX";
 };
 ```
 
@@ -129,7 +129,7 @@ zone "XXX.0.10.in-addr.arpa" {
 
 ### 3.6 Edasisuunatud tsoonifail
 
-**Debian2:**
+**Debian:**
 
 ```bash
 sudo mkdir -p /etc/bind/zones
@@ -150,35 +150,34 @@ $ORIGIN perenimi.local.
 @       IN  NS      ns1.perenimi.local.
 
 ; --- Masinad ---
-ns1     IN  A       10.0.XXX.20
-debian1 IN  A       10.0.XXX.10
-debian2 IN  A       10.0.XXX.20
-ubuntu  IN  A       10.0.XXX.30
+ns1     IN  A       192.168.XXX.10
+debian  IN  A       192.168.XXX.10
+ubuntu  IN  A       192.168.XXX.20
 
-; --- Veebisaidid (Debian1) ---
-@       IN  A       10.0.XXX.10
-www     IN  A       10.0.XXX.10
-wp      IN  CNAME   debian1
-blogi   IN  CNAME   debian1
+; --- Veebisaidid (Debian) ---
+@       IN  A       192.168.XXX.10
+www     IN  A       192.168.XXX.10
+wp      IN  CNAME   debian
+blogi   IN  CNAME   debian
 
-; --- Andmebaas (Debian2) ---
-db      IN  CNAME   debian2
+; --- blogi kaugandmebaas (Ubuntu) ---
+db      IN  CNAME   ubuntu
 
 ; --- E-post (Ubuntu) ---
-mail    IN  A       10.0.XXX.30
+mail    IN  A       192.168.XXX.20
 @       IN  MX  10  mail.perenimi.local.
 ```
 
 SOA teine väli `admin.perenimi.local.` on administraatori e-post, kus `@` asemel on punkt (`admin@perenimi.local`).
 
-SPF, DKIM ja DMARC TXT-kirjed lisame peatükis 10.
+SPF, DKIM ja DMARC TXT-kirjed lisame peatükis 11.
 
 ### 3.7 Pöördtsoonifail
 
-**Debian2:**
+**Debian:**
 
 ```bash
-sudo nano /etc/bind/zones/db.10.0.XXX
+sudo nano /etc/bind/zones/db.192.168.XXX
 ```
 
 ```text
@@ -187,22 +186,21 @@ $TTL 3600
                 2026111201 3600 900 604800 300 )
 @       IN  NS      ns1.perenimi.local.
 
-10      IN  PTR     debian1.perenimi.local.
-20      IN  PTR     debian2.perenimi.local.
-30      IN  PTR     mail.perenimi.local.
+10      IN  PTR     debian.perenimi.local.
+20      IN  PTR     mail.perenimi.local.
 ```
 
 Meiliserveri PTR-kirje peab näitama **sama nime, mida Postfix HELO-s ütleb** (`mail.perenimi.local`). Paljud meiliserverid kontrollivad, kas IP → nimi → IP ring sulgub (*FCrDNS, forward-confirmed reverse DNS*).
 
 ### 3.8 Kontroll ja käivitamine
 
-**Debian2:**
+**Debian:**
 
 ```bash
 sudo chown -R root:bind /etc/bind/zones
 sudo named-checkconf                                                   # tühi väljund = OK
 sudo named-checkzone perenimi.local /etc/bind/zones/db.perenimi.local
-sudo named-checkzone XXX.0.10.in-addr.arpa /etc/bind/zones/db.10.0.XXX
+sudo named-checkzone XXX.168.192.in-addr.arpa /etc/bind/zones/db.192.168.XXX
 sudo systemctl restart named
 sudo systemctl status named
 ```
@@ -214,24 +212,24 @@ zone perenimi.local/IN: loaded serial 2026111201
 OK
 ```
 
-Nüüd muuda Debian2 enda resolveriks BIND (`/etc/resolv.conf`: `nameserver 127.0.0.1`, `search perenimi.local`).
+Nüüd muuda Debiani enda resolveriks BIND (`/etc/resolv.conf`: `nameserver 127.0.0.1`, `search perenimi.local`).
 
 ### 3.9 Testimine
 
-**Debian2:**
+**Debian:**
 
 ```bash
-dig @127.0.0.1 mail.perenimi.local +short          # 10.0.XXX.30
-dig @127.0.0.1 wp.perenimi.local +short            # debian1.perenimi.local. 10.0.XXX.10
+dig @127.0.0.1 mail.perenimi.local +short          # 192.168.XXX.20
+dig @127.0.0.1 wp.perenimi.local +short            # debian.perenimi.local. 192.168.XXX.10
 dig @127.0.0.1 perenimi.local MX +short            # 10 mail.perenimi.local.
-dig @127.0.0.1 -x 10.0.XXX.30 +short               # mail.perenimi.local.
+dig @127.0.0.1 -x 192.168.XXX.20 +short               # mail.perenimi.local.
 dig @127.0.0.1 debian.org +short                   # edastajad töötavad
 dig @127.0.0.1 mail.perenimi.local                 # vaata lippe: flags: qr aa rd ra
 ```
 
 `aa` (*authoritative answer*) näitab, et vastas tsooni omanik.
 
-**Windowsi klient** (PowerShell):
+**Windowsi klient** (PowerShell) – Windows saab Debiani nimeserveri aadressi DHCP-st, mille seadistame järgmises peatükis. Kuni seda pole, tee testid ainult Debianis ja korda Windowsi teste pärast peatükki 4:
 
 ```powershell
 nslookup mail.perenimi.local
@@ -241,11 +239,11 @@ Resolve-DnsName wp.perenimi.local
 
 ### 3.10 Tulemüür
 
-**Debian2:**
+**Debian:**
 
 ```bash
-sudo ufw allow from 10.0.XXX.0/24 to any port 53 proto udp
-sudo ufw allow from 10.0.XXX.0/24 to any port 53 proto tcp
+sudo ufw allow from 192.168.XXX.0/24 to any port 53 proto udp
+sudo ufw allow from 192.168.XXX.0/24 to any port 53 proto tcp
 ```
 
 DNS kasutab tavaliselt UDP-d, kuid suured vastused (nt pikk DKIM-võti) ja tsooniülekanded käivad TCP kaudu – luba mõlemad.

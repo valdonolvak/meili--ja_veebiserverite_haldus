@@ -1,12 +1,12 @@
-## 7. Labori CA ja HTTPS
+## 8. Labori CA ja HTTPS
 
 HTTP liigub võrgus avatekstina: WordPressi parool, Roundcube'i parool ja kõik kirjad oleksid võrgus pealtkuulatavad. **TLS** (*Transport Layer Security*) krüpteerib ühenduse ja **sertifikaat** tõestab, et räägid õige serveriga. Laboris pole avalikku domeeni, seega ei saa kasutada Let's Encrypti – teeme oma **sertifikaadiasutuse (CA)**, nagu ettevõtted sisevõrgus teevad.
 
 ![Labori CA](joonised/07-pki.png)
 
-*Joonis 7.1: Usaldusahel*
+*Joonis 8.1: Usaldusahel*
 
-### 7.1 Mõisted
+### 8.1 Mõisted
 
 | Termin | Selgitus |
 | --- | --- |
@@ -21,11 +21,11 @@ HTTP liigub võrgus avatekstina: WordPressi parool, Roundcube'i parool ja kõik 
 | SNI | Klient ütleb kätluse alguses, millist nime ta tahab – nii saab ühel IP-l olla mitu HTTPS-saiti eri sertidega. |
 | HSTS | Päis, mis käsib brauseril seda saiti edaspidi avada ainult HTTPS-iga. |
 
-### 7.2 Labori CA loomine (Debian2)
+### 8.2 Labori CA loomine (Debian)
 
 CA privaatvõti on kogu labori kõige tundlikum fail: kes selle saab, saab teha **usaldatud serdi mistahes nimele**. Hoiame seda ainult root'ile loetavas kaustas.
 
-**Debian2:**
+**Debian:**
 
 ```bash
 sudo -i                                   # edasi root'ina
@@ -39,27 +39,27 @@ openssl req -x509 -new -key ca.key -sha256 -days 3650 -out ca.crt \
 openssl x509 -in ca.crt -noout -subject -dates
 ```
 
-### 7.3 Serdi väljastamine
+### 8.3 Serdi väljastamine
 
-Iga serveriserdi jaoks on vaja laiendusfaili, kus on **SAN-nimed**. Tee Debian1 jaoks üks sert, mis kehtib kõigile tema saitidele.
+Iga serveriserdi jaoks on vaja laiendusfaili, kus on **SAN-nimed**. Tee Debiani jaoks üks sert, mis kehtib kõigile tema saitidele.
 
-**Debian2 (root, kaustas `/root/labori-ca`):**
+**Debian (root, kaustas `/root/labori-ca`):**
 
 ```bash
-cat > debian1.ext <<EOF
+cat > debian.ext <<EOF
 basicConstraints = CA:FALSE
 keyUsage = digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth
-subjectAltName = DNS:www.perenimi.local, DNS:wp.perenimi.local, DNS:blogi.perenimi.local, DNS:perenimi.local, DNS:debian1.perenimi.local
+subjectAltName = DNS:www.perenimi.local, DNS:wp.perenimi.local, DNS:blogi.perenimi.local, DNS:perenimi.local, DNS:debian.perenimi.local
 EOF
 
-openssl genrsa -out debian1.key 2048
-openssl req -new -key debian1.key -out debian1.csr -subj "/C=EE/O=Perenimi labor/CN=www.perenimi.local"
-openssl x509 -req -in debian1.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
-  -out debian1.crt -days 825 -sha256 -extfile debian1.ext
+openssl genrsa -out debian.key 2048
+openssl req -new -key debian.key -out debian.csr -subj "/C=EE/O=Perenimi labor/CN=www.perenimi.local"
+openssl x509 -req -in debian.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out debian.crt -days 825 -sha256 -extfile debian.ext
 
-openssl verify -CAfile ca.crt debian1.crt                 # debian1.crt: OK
-openssl x509 -in debian1.crt -noout -ext subjectAltName
+openssl verify -CAfile ca.crt debian.crt                 # debian.crt: OK
+openssl x509 -in debian.crt -noout -ext subjectAltName
 ```
 
 Meiliserveri sert (Ubuntu) samamoodi:
@@ -82,30 +82,30 @@ openssl verify -CAfile ca.crt mail.perenimi.local.crt
 
 > **825 päeva** on suurim kehtivus, mida Apple'i seadmed sisevõrgu serdile lubavad. Avalikud serdid kehtivad tänapäeval kuni 398 päeva ja see aeg lüheneb aastatega veelgi – seepärast automatiseeritakse uuendamist (ACME/Certbot).
 
-> Tootmises tehakse võti ja CSR **sihtserveris** ning CA-le saadetakse ainult CSR – privaatvõti ei liigu võrgus kunagi. Laboris teeme lihtsuse huvides kõik Debian2-s ja kopeerime üle SSH.
+> Tootmises tehakse võti ja CSR **sihtserveris** ning CA-le saadetakse ainult CSR – privaatvõti ei liigu võrgus kunagi. Laboris teeme lihtsuse huvides kõik Debianis ja kopeerime Ubuntu failid üle SSH.
 
-### 7.4 Failide kopeerimine
+### 8.4 Failide paigutamine ja kopeerimine
 
-**Debian2 (root):**
+CA ja veebiserver on samas masinas (Debian), seega Debiani serdi paigaldame kohe. Meiliserveri failid ja juursert kopeerime Ubuntule ning juurserdi ka kodukausta, kust Windows selle ära toob.
+
+**Debian (root, kaustas `/root/labori-ca`):**
 
 ```bash
-scp ca.crt debian1.crt debian1.key opilane@10.0.XXX.10:/home/opilane/
-scp ca.crt mail.perenimi.local.crt mail.perenimi.local.key opilane@10.0.XXX.30:/home/opilane/
+install -m 644 debian.crt /etc/ssl/certs/debian.crt
+install -m 600 debian.key /etc/ssl/private/debian.key
+install -m 644 ca.crt /usr/local/share/ca-certificates/perenimi-labori-ca.crt
+update-ca-certificates                                   # 1 added
+
+scp ca.crt mail.perenimi.local.crt mail.perenimi.local.key opilane@192.168.XXX.20:/home/opilane/
 cp ca.crt /home/opilane/ && chown opilane: /home/opilane/ca.crt     # Windowsi jaoks
 exit
 ```
 
-### 7.5 Serdid Debian1-le ja HTTPS vhostid
+### 8.5 HTTPS vhostid Debianis
 
-**Debian1:**
+**Debian:**
 
 ```bash
-cd ~
-sudo install -m 644 debian1.crt /etc/ssl/certs/debian1.crt
-sudo install -m 600 debian1.key /etc/ssl/private/debian1.key
-sudo install -m 644 ca.crt /usr/local/share/ca-certificates/perenimi-labori-ca.crt
-sudo update-ca-certificates                    # 1 added
-rm debian1.key                                 # koopia kodukaustast ära
 sudo a2enmod ssl headers rewrite
 ```
 
@@ -127,8 +127,8 @@ sudo nano /etc/apache2/sites-available/wp.perenimi.local.conf
     DocumentRoot /var/www/wp.perenimi.local
 
     SSLEngine on
-    SSLCertificateFile    /etc/ssl/certs/debian1.crt
-    SSLCertificateKeyFile /etc/ssl/private/debian1.key
+    SSLCertificateFile    /etc/ssl/certs/debian.crt
+    SSLCertificateKeyFile /etc/ssl/private/debian.key
 
     Header always set Strict-Transport-Security "max-age=31536000"
     Header always set X-Content-Type-Options "nosniff"
@@ -154,7 +154,7 @@ sudo apache2ctl configtest && sudo systemctl reload apache2
 sudo apache2ctl -S
 ```
 
-Proovi käsurealt (Debian1 usaldab nüüd labori CA-d, seega `-k` pole vaja):
+Proovi käsurealt (Debian usaldab nüüd labori CA-d, seega `-k` pole vaja):
 
 ```bash
 curl -sI http://wp.perenimi.local/          # 301 → https://wp.perenimi.local/
@@ -162,27 +162,27 @@ curl -sI https://wp.perenimi.local/         # 200 või 302 (WordPress)
 openssl s_client -connect wp.perenimi.local:443 -servername wp.perenimi.local </dev/null 2>/dev/null | grep -E "subject=|issuer=|Verify return"
 ```
 
-### 7.6 WordPress HTTPS-ile
+### 8.6 WordPress HTTPS-ile
 
 WordPress mäletab oma aadressi andmebaasis (`siteurl`, `home`). Kui need on `http://`, tekib suunamiste ring või puuduvad pildid/stiilid (*mixed content*).
 
-**Windowsi klient** (pärast 7.7): `https://wp.perenimi.local/wp-admin` → *Seaded → Üldine* → **WordPressi aadress** ja **Saidi aadress** → `https://wp.perenimi.local` → *Salvesta*. Sama tee blogi saidil.
+**Windowsi klient** (pärast 8.7): `https://wp.perenimi.local/wp-admin` → *Seaded → Üldine* → **WordPressi aadress** ja **Saidi aadress** → `https://wp.perenimi.local` → *Salvesta*. Sama tee blogi saidil.
 
 Kui halduspaneel ei avane, muuda käsurealt:
 
 ```bash
-# Debian1 (wp_db on siin)
+# Debian (wp_db on siin)
 sudo mariadb -e "UPDATE wp_db.wp_options SET option_value='https://wp.perenimi.local' WHERE option_name IN ('siteurl','home');"
-# Debian2 (blogi_db on seal)
+# Ubuntu (blogi_db on seal)
 sudo mariadb -e "UPDATE blogi_db.wp_options SET option_value='https://blogi.perenimi.local' WHERE option_name IN ('siteurl','home');"
 ```
 
-### 7.7 Juursert Windowsi usaldusväärseks
+### 8.7 Juursert Windowsi usaldusväärseks
 
 Too `ca.crt` Windowsi (PowerShell):
 
 ```powershell
-scp opilane@10.0.XXX.20:ca.crt $env:USERPROFILE\Downloads\
+scp opilane@192.168.XXX.10:ca.crt $env:USERPROFILE\Downloads\
 ```
 
 **Variant A – GUI:**
@@ -201,7 +201,7 @@ Get-ChildItem Cert:\LocalMachine\Root | Where-Object Subject -like "*Labori CA*"
 
 Sulge ja ava brauser uuesti. `https://wp.perenimi.local` avaneb lukuga ilma hoiatuseta. Edge ja Chrome kasutavad Windowsi serdihoidlat; **Firefox** kasutab Windowsis vaikimisi samuti Windowsi juurserte (`security.enterprise_roots.enabled = true`), kui ei, impordi sert Firefoxi seadetes (*Privacy & Security → Certificates → View Certificates → Authorities → Import*).
 
-### 7.8 Meiliserveri serdid (Ubuntu)
+### 8.8 Meiliserveri serdid (Ubuntu)
 
 **Ubuntu:**
 
@@ -214,9 +214,9 @@ sudo update-ca-certificates
 rm mail.perenimi.local.key
 ```
 
-Ubuntu peab ise labori CA-d usaldama, sest Roundcube (PHP) ühendub Dovecoti ja Postfixiga TLS-iga ning kontrollib nende serti (peatükk 11). Sama serti kasutavad Postfix, Dovecot ja Apache.
+Ubuntu peab ise labori CA-d usaldama, sest Roundcube (PHP) ühendub Dovecoti ja Postfixiga TLS-iga ning kontrollib nende serti (peatükk 12). Sama serti kasutavad Postfix, Dovecot ja Apache.
 
-### 7.9 Mida brauser kontrollib
+### 8.9 Mida brauser kontrollib
 
 | Kontroll | Kui ebaõnnestub |
 | --- | --- |

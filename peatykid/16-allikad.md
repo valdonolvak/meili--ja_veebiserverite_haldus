@@ -1,9 +1,12 @@
-## 15. Allikad ja lisalugemine
+## 16. Allikad ja lisalugemine
 
 ### Ametlik dokumentatsioon
 
 | Teema | Allikas |
 | --- | --- |
+| Kea DHCP | [Kea Administrator Reference Manual](https://kea.readthedocs.io/), `man kea-dhcp4` |
+| ISC DHCP lõpp | [ISC DHCP Server has reached EOL](https://www.isc.org/blogs/isc-dhcp-eol/) |
+| Proxmox SDN | [Proxmox VE: Software-Defined Network](https://pve.proxmox.com/wiki/Software-Defined_Network) |
 | Apache2 virtuaalhostid | [Apache HTTP Server: Virtual Host documentation](https://httpd.apache.org/docs/2.4/vhosts/) |
 | Apache2 SSL | [Apache: SSL/TLS Strong Encryption How-To](https://httpd.apache.org/docs/2.4/ssl/ssl_howto.html) |
 | WordPress | [WordPress: How to install WordPress](https://developer.wordpress.org/advanced-administration/before-install/howto-install/), [Hosting handbook](https://make.wordpress.org/hosting/handbook/) |
@@ -21,6 +24,8 @@
 
 | RFC | Teema |
 | --- | --- |
+| RFC 2131 | DHCP |
+| RFC 2132 | DHCP valikud (options) |
 | RFC 5321 | SMTP protokoll |
 | RFC 5322 | E-kirja vorming (päised) |
 | RFC 6409 | Kirjade saatmine kliendilt (*submission*, port 587) |
@@ -41,7 +46,7 @@
 | [Wordpressi paigaldus teisele serverile](../Veebiserver/Iseseisevt%C3%B6%C3%B6/Wordpressi%20paigaldus%20teisele%20serverile.md) | 6 |
 | [Võrgu seadistamine Debianil](../V%C3%B5rgu%20seadistamine%20Debianil.md) | 2 |
 | [Nimeserver Bind9 seadistamine](../Nimeserver%20Bind9%20seadistamine.md), [DNS-Bind9](../Epost_DNS/DNS-Bind9.md) | 3 |
-| [DDNS-DHCP](../Epost_DNS/DDNS-DHCP.md) | 3 (lisateema) |
+| [DDNS-DHCP](../Epost_DNS/DDNS-DHCP.md) | 4 (lisateema) |
 | [Apache2 ja Wordpressi turvalisuse tõstmine koos HTTPS seadistusega](../Turvalisus/Apache2%20ja%20Wordpressi%20turvalisuse%20t%C3%B5stmine%20koos%20HTTPS%20seadistusega.md) | 7 |
 | [Ründed veebiserveritele](../Turvalisus/R%C3%BCnded%20veebiserveritele.md) | 7, 10 |
 | [E-posti server Postfix ja Dovecot](../Epost_DNS/1.%20E-posti%20server%20Postfix%20ja%20Dovecot.md) | 9 |

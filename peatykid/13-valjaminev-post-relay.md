@@ -1,12 +1,12 @@
-## 12. Väljaminev post internetti relay kaudu (Ubuntu)
+## 13. Väljaminev post internetti relay kaudu (Ubuntu)
 
 Seni liiguvad kirjad ainult domeeni `perenimi.local` sees. Selles peatükis seadistame Postfixi nii, et kiri aadressile `keegi@gmail.com` või `opetaja@kool.ee` jõuab päriselt kohale. Otse saata ei saa – see käib **relay** ehk **smarthost**'i kaudu.
 
 ![Väljaminev post relay kaudu](joonised/12-relay.png)
 
-*Joonis 12.1: Relay annab kirja edasi enda nimel*
+*Joonis 13.1: Relay annab kirja edasi enda nimel*
 
-### 12.1 Miks otse ei saa?
+### 13.1 Miks otse ei saa?
 
 Kui Postfix prooviks kirja ise `gmail.com` MX-serverile viia, lükataks see tagasi mitmel põhjusel:
 
@@ -19,7 +19,7 @@ Kui Postfix prooviks kirja ise `gmail.com` MX-serverile viia, lükataks see taga
 
 **Relay** on server, mis usaldab meid (parooliga) ja mida usaldab internet (päris domeen, SPF, DKIM, maine). Postfix annab kõik välised kirjad relay'le ja relay viib need edasi.
 
-### 12.2 Mõisted
+### 13.2 Mõisted
 
 | Termin | Selgitus |
 | --- | --- |
@@ -29,7 +29,7 @@ Kui Postfix prooviks kirja ise `gmail.com` MX-serverile viia, lükataks see taga
 | Rakenduse parool (*app password*) | Eraldi parool ühele programmile, mitte konto põhiparool. Gmail nõuab seda (konto peab kasutama kaheastmelist kinnitamist). |
 | `smtp_generic_maps` | kirjutab **väljamineva** kirja aadressid ümber (ümbrik + päised): `mari@perenimi.local` → päris aadress. Kohalikke kirju see ei puuduta. |
 
-### 12.3 Relay valik
+### 13.3 Relay valik
 
 Relay andmed annab õpetaja. Levinumad variandid:
 
@@ -43,7 +43,7 @@ Relay andmed annab õpetaja. Levinumad variandid:
 
 Allpool on näitena `[smtp.gmail.com]:587`. Kooli relay puhul asenda server, kasutaja ja parool.
 
-### 12.4 Eeldus: SASL moodulid
+### 13.4 Eeldus: SASL moodulid
 
 Ubuntu **ei paigalda** Postfixiga koos SASL-i kliendimooduleid. Ilma nendeta ebaõnnestub sisselogimine relay'sse veaga `SASL authentication failure: No worthy mechs found`.
 
@@ -53,7 +53,7 @@ Ubuntu **ei paigalda** Postfixiga koos SASL-i kliendimooduleid. Ilma nendeta eba
 sudo apt install -y libsasl2-modules
 ```
 
-### 12.5 Relay parool
+### 13.5 Relay parool
 
 **Ubuntu:**
 
@@ -73,7 +73,7 @@ sudo postmap /etc/postfix/sasl_passwd
 ls -l /etc/postfix/sasl_passwd*          # mõlemad -rw------- root
 ```
 
-### 12.6 Aadresside ümberkirjutus
+### 13.6 Aadresside ümberkirjutus
 
 Internetis peab saatja aadress olema päris domeenis. Kirjutame väljaminevates kirjades `@perenimi.local` aadressid relay konto aadressiks:
 
@@ -98,7 +98,7 @@ sudo postmap /etc/postfix/generic
 postmap -q "mari@perenimi.local" hash:/etc/postfix/generic
 ```
 
-### 12.7 Postfixi seaded
+### 13.7 Postfixi seaded
 
 **Ubuntu:**
 
@@ -125,7 +125,7 @@ Kui relay kasutab porti **465** (implicit TLS): `relayhost = [smtp.server.ee]:46
 
 Kohalikud kirjad (`@perenimi.local`) toimetatakse endiselt Dovecotile – `relayhost` kehtib ainult domeenidele, mis pole `mydestination`-is.
 
-### 12.8 Test
+### 13.8 Test
 
 **Windowsi klient:** logi Roundcube'i sisse kui `mari` ja saada kiri **oma isiklikule aadressile** (või õpetaja aadressile).
 
@@ -143,19 +143,19 @@ postfix/smtp[…]: 7DC7EC4886: to=<sinu.aadress@gmail.com>, relay=smtp.gmail.com
 
 Ava kiri adressaadi postkastis ja vaata päiseid (Gmailis *⋮ → Kuva algne*): `From:` on relay konto aadress, `DKIM: 'PASS' with domain gmail.com`, `SPF: PASS`.
 
-### 12.9 Tüüpilised vead
+### 13.9 Tüüpilised vead
 
 | Logis | Põhjus | Lahendus |
 | --- | --- | --- |
-| `SASL authentication failure: No worthy mechs found` | puudub `libsasl2-modules` | 12.4 |
+| `SASL authentication failure: No worthy mechs found` | puudub `libsasl2-modules` | 13.4 |
 | `535-5.7.8 Username and Password not accepted` | vale kasutaja või parool; Gmailis tavaline parool rakenduse parooli asemel | kontrolli `sasl_passwd`, käivita `postmap` uuesti |
 | `Connection timed out` relay pordile | tulemüür / võrk blokeerib väljuva 587 | `nc -vz smtp.gmail.com 587`; küsi õpetajalt, kas port on lubatud |
-| `Host or domain name not found … smtp.gmail.com` | Ubuntu ei saa välisnimesid lahendada | Debian2 BIND edastajad (3.4), `dig smtp.gmail.com` |
+| `Host or domain name not found … smtp.gmail.com` | Ubuntu ei saa välisnimesid lahendada | Debiani BIND edastajad (3.4), `dig smtp.gmail.com` |
 | `TLS is required, but was not offered` | relay ei paku STARTTLS-i sellel pordil | vale port; 465 puhul `smtp_tls_wrappermode = yes` |
 | `553 5.7.1 Sender address rejected: not owned by user` (relay vastus) | relay ei luba saatja aadressi | `generic` kaardistus puudub või `postmap` jäi tegemata |
 | kiri on järjekorras (`mailq`) | ajutine viga | `sudo postqueue -f` (proovi kohe uuesti), `sudo postsuper -d ALL deferred` (kustuta) |
 
-### 12.10 Mis jääb laboris puudu (ja kuidas päriselt tehakse)
+### 13.10 Mis jääb laboris puudu (ja kuidas päriselt tehakse)
 
 Vastused välisest internetist **ei jõua** Roundcube'i – need lähevad relay konto postkasti, sest `perenimi.local` pole avalikus DNS-is ja labori masinad on NAT-i taga. Päris meiliserveri jaoks oleks vaja:
 

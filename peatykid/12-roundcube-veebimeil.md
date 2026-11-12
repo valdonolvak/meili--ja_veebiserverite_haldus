@@ -1,12 +1,12 @@
-## 11. Veebimeil Roundcube (Ubuntu)
+## 12. Veebimeil Roundcube (Ubuntu)
 
 Lõppeesmärk: Windowsi kliendis avad brauseris **`https://mail.perenimi.local`**, logid sisse kasutajaga `mari`, loed kirju ja saadad neid nii oma domeeni kui ka välja. Selleks paigaldame Ubuntu masinasse Apache2 ja **Roundcube'i**.
 
 ![Roundcube on vahendaja](joonised/11-roundcube.png)
 
-*Joonis 11.1: Roundcube ühendub kasutaja nimel Dovecoti ja Postfixiga*
+*Joonis 12.1: Roundcube ühendub kasutaja nimel Dovecoti ja Postfixiga*
 
-### 11.1 Mõisted
+### 12.1 Mõisted
 
 | Termin | Selgitus |
 | --- | --- |
@@ -17,7 +17,7 @@ Lõppeesmärk: Windowsi kliendis avad brauseris **`https://mail.perenimi.local`*
 | SQLite | failipõhine andmebaas; Roundcube hoiab seal seadeid, kontakte, sessioone. Eraldi andmebaasiserverit pole vaja. |
 | Sessioon | sisselogimise olek, seotud küpsisega. `ip_check` seob selle kliendi IP-ga. |
 
-### 11.2 Paigaldus
+### 12.2 Paigaldus
 
 **Ubuntu:**
 
@@ -44,9 +44,9 @@ Paigaldus loob:
 | `/var/lib/dbconfig-common/sqlite3/roundcube/` | SQLite andmebaas |
 | `/var/log/roundcube/errors.log` | vead ja ebaõnnestunud sisselogimised (fail2ban loeb seda) |
 
-### 11.3 Roundcube'i seadistus
+### 12.3 Roundcube'i seadistus
 
-Paketi vaikeseadistus on `imap_host = localhost:143` ja `smtp_host = localhost:587`. **Meie karmistatud serveriga need ei tööta:** port 143 on suletud (9.7) ja pordil 587 kontrollib Roundcube serdi nime – sert on tehtud nimele `mail.perenimi.local`, mitte `localhost`.
+Paketi vaikeseadistus on `imap_host = localhost:143` ja `smtp_host = localhost:587`. **Meie karmistatud serveriga need ei tööta:** port 143 on suletud (10.7) ja pordil 587 kontrollib Roundcube serdi nime – sert on tehtud nimele `mail.perenimi.local`, mitte `localhost`.
 
 **Ubuntu:**
 
@@ -85,9 +85,9 @@ Kontrolli PHP süntaksit:
 sudo php -l /etc/roundcube/config.inc.php      # No syntax errors detected
 ```
 
-> **Miks `mail.perenimi.local`, mitte `localhost`?** Roundcube kontrollib TLS-ühenduse serti nagu brauser: nimi peab olema SAN-is ja CA usaldatud. Ubuntu usaldab labori CA-d (7.8), seega ühendus valideerub. Kui CA pole paigaldatud, on `errors.log`-is `certificate verify failed`.
+> **Miks `mail.perenimi.local`, mitte `localhost`?** Roundcube kontrollib TLS-ühenduse serti nagu brauser: nimi peab olema SAN-is ja CA usaldatud. Ubuntu usaldab labori CA-d (8.8), seega ühendus valideerub. Kui CA pole paigaldatud, on `errors.log`-is `certificate verify failed`.
 
-### 11.4 Apache virtuaalhost mail.perenimi.local
+### 12.4 Apache virtuaalhost mail.perenimi.local
 
 Pakett lisab üldise aliase `/roundcube`, mis töötaks igal saidil. Meie tahame veebimeili **oma nimel**, seega keelame aliase ja teeme vhosti.
 
@@ -148,9 +148,9 @@ sudo systemctl reload apache2
 
 Roundcube 1.6 hoiab veebis nähtavaid faile kaustas `public_html` – seadistus, logid ja ajutised failid jäävad veebist väljapoole. `Require all denied` plokid on lisakaitse.
 
-### 11.5 Manuste suurus
+### 12.5 Manuste suurus
 
-PHP lubab vaikimisi üles laadida 2 MB faili. Postfix lubab 25 MB kirja (9.3); manus kasvab kodeerimisel ~37%, seega sobib ~18 MB manus.
+PHP lubab vaikimisi üles laadida 2 MB faili. Postfix lubab 25 MB kirja (10.3); manus kasvab kodeerimisel ~37%, seega sobib ~18 MB manus.
 
 **Ubuntu:**
 
@@ -167,7 +167,7 @@ post_max_size = 20M
 sudo systemctl reload apache2
 ```
 
-### 11.6 Test käsurealt
+### 12.6 Test käsurealt
 
 **Ubuntu:**
 
@@ -176,9 +176,9 @@ curl -sI http://mail.perenimi.local/ | head -2           # 301 -> https://mail.p
 curl -s https://mail.perenimi.local/ | grep -o "<title>[^<]*"
 ```
 
-### 11.7 Test Windowsi kliendist
+### 12.7 Test Windowsi kliendist
 
-1. Windowsi DNS on `10.0.XXX.20` (2.11) ja labori CA on usaldatud (7.7).
+1. Windowsi klient on saanud DHCP-st aadressi ja nimeserveri `192.168.XXX.10` (peatükk 4) ja labori CA on usaldatud (8.7).
 2. Ava **`https://mail.perenimi.local`** – lukk, hoiatust pole.
 3. Logi sisse: kasutaja **`mari`** (või `mari@perenimi.local`) ja Ubuntu kasutaja parool.
 4. **Koosta kiri** → saaja `jaan@perenimi.local` → *Saada*.
@@ -189,14 +189,14 @@ curl -s https://mail.perenimi.local/ | grep -o "<title>[^<]*"
 Ubuntu logis näed kogu ahelat:
 
 ```text
-postfix/submission/smtpd[…]: …: client=mail.perenimi.local[10.0.XXX.30], sasl_method=LOGIN, sasl_username=mari
+postfix/submission/smtpd[…]: …: client=mail.perenimi.local[192.168.XXX.20], sasl_method=LOGIN, sasl_username=mari
 opendkim[…]: …: DKIM-Signature field added (s=s1, d=perenimi.local)
 postfix/lmtp[…]: …: to=<jaan@perenimi.local>, relay=mail.perenimi.local[private/dovecot-lmtp], status=sent
 ```
 
 Pane tähele: Postfixi jaoks on klient **Ubuntu ise** (Roundcube), mitte Windows – Windows räägib ainult HTTPS-i Apache'iga.
 
-### 11.8 Thunderbird (valikuline)
+### 12.8 Thunderbird (valikuline)
 
 Thunderbirdi või Outlooki saab samale postkastile seadistada käsitsi:
 
@@ -207,8 +207,8 @@ Thunderbirdi või Outlooki saab samale postkastile seadistada käsitsi:
 
 Saada kiri Thunderbirdist ja ava see Roundcube'is – mõlemad näevad sama postkasti, sest kirjad on serveris (IMAP).
 
-### 11.9 Turvalisus
+### 12.9 Turvalisus
 
-- **fail2ban** `roundcube-auth` vangla (10.8) – lülita see nüüd sisse (`enabled = true`), kontrolli `sudo fail2ban-client status roundcube-auth`.
-- `errors.log` peab kuuluma `www-data`-le. Proovi valet parooli ja vaata: `sudo tail -1 /var/log/roundcube/errors.log` → `IMAP Error: Login failed for mari@perenimi.local … from 10.0.XXX.100`.
+- **fail2ban** `roundcube-auth` vangla (11.8) – lülita see nüüd sisse (`enabled = true`), kontrolli `sudo fail2ban-client status roundcube-auth`.
+- `errors.log` peab kuuluma `www-data`-le. Proovi valet parooli ja vaata: `sudo tail -1 /var/log/roundcube/errors.log` → `IMAP Error: Login failed for mari@perenimi.local … from 192.168.XXX.50`.
 - Uuenda Roundcube'i regulaarselt (`apt upgrade`) – veebimeil on internetis üks enim rünnatud rakendusi.
