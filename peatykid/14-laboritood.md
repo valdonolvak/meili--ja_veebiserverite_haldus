@@ -152,8 +152,14 @@ sudo cat /var/lib/kea/kea-leases4.csv   # Windowsi MAC ja aadress
 8. Windowsis ava kõik kolm saiti nime järgi ja `http://192.168.XXX.10` IP järgi.
 9. Peida serveri versioon (5.9).
 10. Jälgi `tail -f` access-logi ja ava sait Windowsis.
+11. Lülita sisse turvauuendused `unattended-upgrades` (5.11.1).
+12. Loo `turvalisus.conf`, lülita see sisse ja tee testfailidega test (5.11.2). Kirjuta laboripäevikusse iga testfaili vastuse kood ilma `turvalisus.conf`-ita ja sellega.
+13. Kontrolli turvapäiseid `curl -sI` ja Windowsi brauseri arendaja tööriistadega (`F12` → *Network*) (5.11.3).
+14. Lülita välja moodulid `status` ja `autoindex` ning tee staatilise saidi omanikuks root (5.11.5).
+15. Paigalda ModSecurity: kõigepealt `DetectionOnly`, leia logist SQL-süsti rida, siis `On` ja tee viis testi (5.11.6). Lisa WordPressi erandite reegel.
+16. Läbi kontrollnimekiri (5.11.7).
 
-**Kontrollpunkt:** iga sait näitab oma pealkirja; IP-ga avades näed „Tundmatu sait“; `curl -sI http://127.0.0.1/ | grep Server` → `Server: Apache`.
+**Kontrollpunkt:** iga sait näitab oma pealkirja; IP-ga avades näed „Tundmatu sait“; `curl -sI http://127.0.0.1/ | grep Server` → `Server: Apache`; `/.env` → 404; `?id=1' OR 1=1--` → 403.
 
 **Küsimused:**
 
@@ -162,6 +168,11 @@ sudo cat /var/lib/kea/kea-leases4.csv   # Windowsi MAC ja aadress
 3. Mis vahe on `systemctl reload` ja `restart` vahel? Millal on vaja `restart`-i?
 4. Miks `Options -Indexes`?
 5. Mis on `sites-available` ja `sites-enabled` erinevus? Mida teeb `a2ensite` tegelikult failisüsteemis (`ls -l /etc/apache2/sites-enabled/`)?
+6. Miks on `wp-config.php` turvaline, aga `wp-config.php.bak` ohtlik, kuigi sisu on sama?
+7. Miks vastame peidetud failidele koodiga 404, mitte 403?
+8. Mis vahe on ufw-l ja ModSecurity'l? Kas üks asendab teist?
+9. Miks käivitatakse ModSecurity esmalt režiimis `DetectionOnly`?
+10. Miks on staatilise saidi failide omanik root, aga WordPressi failide omanik `www-data`?
 
 ---
 

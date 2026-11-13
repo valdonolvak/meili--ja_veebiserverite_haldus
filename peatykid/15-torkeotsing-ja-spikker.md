@@ -66,6 +66,8 @@
 | Näed „Apache2 Debian Default Page“ | `000-default` lubatud või sait lubamata | `a2dissite 000-default`, `a2ensite …`, `apache2ctl -S` |
 | Vale sait avaneb | `ServerName` kirjaviga, DNS osutab valesse masinasse | `apache2ctl -S`, `curl -H "Host: …"` |
 | 403 Forbidden | puudub `Require all granted` või õigused | vhost `<Directory>`, `namei -l /var/www/…/index.php` |
+| 403 Forbidden ainult mõne tegevuse juures (nt WordPressis salvestamine) | ModSecurity blokeeris päringu | `grep ModSecurity /var/log/apache2/<sait>_error.log` → reegli `id`; WordPressi erandid või `SecRuleRemoveById` vhostis (5.11.6) |
+| Pilt või fail annab 403/404, kuigi on olemas | `turvalisus.conf` reegel (peidetud fail, `.bak`, `.zip`, PHP `uploads`-is) | `sudo a2disconf turvalisus` ajutiselt, kontrolli faili nime (5.11.2) |
 | PHP kood kuvatakse tekstina / laaditakse alla | `libapache2-mod-php` puudub | paigalda, `systemctl restart apache2` |
 | „Error establishing a database connection“ | `wp-config.php` andmed, MariaDB maas, kaug-DB lukk kinni | käsurea test `mariadb -h … -u … -p` (7.6) |
 | Postitused annavad 404 | `rewrite` moodul või `AllowOverride All` puudub | `a2enmod rewrite`, vhost |
